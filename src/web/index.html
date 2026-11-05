@@ -6,7 +6,7 @@
 <title>Blackmagic Cam Remote</title>
 <link rel="stylesheet" href="/css/app.css">
 </head>
-<body>
+<body class="setup-mode">
 <div class="wrap">
   <header>
     <h1><span class="dot" id="conn"></span> <span><span id="phoneName">Phone</span><small>Blackmagic Camera</small></span></h1>
@@ -16,7 +16,7 @@
     </div>
     <div class="stat"><b>Format</b><span id="fmt">–</span></div>
     <div class="stat"><b>Battery</b><span id="bat">–</span></div>
-    <div class="stat"><b>Rec time left</b><span id="left">–</span></div>
+    <div class="stat"><b>Rec left</b><span id="left">–</span></div>
     <div class="stat"><b>Lens</b><span id="lensNow">–</span></div>
   </header>
 
@@ -63,7 +63,7 @@
   <div id="dash" hidden>
   <div class="main">
     <section class="live" id="liveTile">
-      <h2>Live view</h2>
+      <h2 class="livehead">Live view <span class="rectc" id="recTc" hidden><i></i><span id="recTcText">00:00:00:00</span></span></h2>
       <div class="stage" id="stage">
         <canvas id="view" width="16" height="9"></canvas>
         <div class="recbox"><button id="rec" title="Start / stop recording (space)" disabled><i></i></button></div>
@@ -99,7 +99,7 @@
       <section>
         <h2>Lens &amp; zoom</h2>
         <div class="row"><label>Camera</label><div class="seg" id="lenses"></div></div>
-        <div class="row"><label>Zoom</label><input type="range" id="zoom" min="0" max="1" step="0.001"><output id="zoomOut">–</output></div>
+        <div class="field"><div class="fhead"><label>Zoom</label><output id="zoomOut">–</output></div><input type="range" id="zoom" min="0" max="1" step="0.001"></div>
       </section>
 
       <section>
@@ -121,14 +121,14 @@
             <button class="btn" data-v="off">Manual</button>
           </div>
         </div>
-        <div class="row"><label>Focus</label><input type="range" id="focus" min="0" max="1" step="0.001"><output id="focusOut">–</output></div>
-        <div class="row"><label></label><button class="btn" id="afOnce">Focus once</button></div>
+        <div class="field"><div class="fhead"><label>Focus distance</label><output id="focusOut">–</output></div><input type="range" id="focus" min="0" max="1" step="0.001"></div>
+        <div class="row"><button class="btn wide" id="afOnce">Focus once</button></div>
       </section>
     </div>
   </div>
 
-  <div class="grid2">
-    <section>
+  <div class="settings">
+    <section class="a-exp">
       <h2>Exposure</h2>
       <div class="row"><label>Auto exposure</label>
         <div class="seg" id="ae">
@@ -141,39 +141,45 @@
       <div class="row"><label>Iris</label><output id="iris" style="text-align:left">–</output></div>
     </section>
 
-    <section>
+    <section class="a-wb">
       <h2>White balance</h2>
-      <div class="row"><label>Temperature</label><input type="range" id="wb" min="2500" max="10000" step="50"><output id="wbOut">–</output></div>
-      <div class="row"><label>Tint</label><input type="range" id="tint" min="-50" max="50" step="1"><output id="tintOut">–</output></div>
-      <div class="row"><label></label><button class="btn" id="wbAuto">Auto white balance (one shot)</button></div>
+      <div class="field"><div class="fhead"><label>Temperature</label><output id="wbOut">–</output></div><input type="range" id="wb" min="2500" max="10000" step="50"></div>
+      <div class="field"><div class="fhead"><label>Tint</label><output id="tintOut">–</output></div><input type="range" id="tint" min="-50" max="50" step="1"></div>
+      <div class="row"><button class="btn wide" id="wbAuto">Auto white balance (one shot)</button></div>
     </section>
 
-    <section>
+    <section class="a-mon">
       <h2>Monitoring overlays</h2>
+      <div class="moncols">
       <table class="mon">
         <thead><tr><th></th><th>Phone screen</th><th>HDMI out</th></tr></thead>
         <tbody id="monTable"></tbody>
       </table>
+      <div class="monset">
       <div class="row"><label>Focus assist</label>
         <select id="faMode"><option value="Peak">Peak</option><option value="ColoredLines">Colored lines</option></select>
         <select id="faColor"><option>Red</option><option>Green</option><option>Blue</option><option>White</option><option>Black</option></select>
       </div>
-      <div class="row"><label>FA intensity</label><input type="range" id="faInt" min="1" max="100" step="1"><output id="faIntOut">–</output></div>
       <div class="row"><label>Zebra level</label><select id="zebraLevel"><option>75</option><option>80</option><option>85</option><option>90</option><option>95</option><option>100</option></select> %</div>
       <div class="row"><label>Frame guide</label><select id="guideRatio"></select></div>
       <div class="row"><label>Grids</label><div class="seg" id="grids">
         <button class="btn small" data-v="Thirds">Thirds</button><button class="btn small" data-v="Crosshair">Crosshair</button>
         <button class="btn small" data-v="Dot">Dot</button><button class="btn small" data-v="Horizon">Horizon</button></div></div>
-      <div class="row"><label>Safe area</label><input type="range" id="safePct" min="50" max="100" step="1"><output id="safePctOut">–</output></div>
+      </div>
+      </div>
+      <div class="monsliders">
+      <div class="field"><div class="fhead"><label>Focus assist intensity</label><output id="faIntOut">–</output></div><input type="range" id="faInt" min="1" max="100" step="1"></div>
+      <div class="field"><div class="fhead"><label>Safe area</label><output id="safePctOut">–</output></div><input type="range" id="safePct" min="50" max="100" step="1"></div>
+      </div>
     </section>
 
-    <section>
+    <section class="a-pre">
       <h2>Presets</h2>
       <div class="presets" id="presetList"><div class="empty">No presets yet.</div></div>
       <div class="row"><input type="text" id="presetName" placeholder="New preset name" maxlength="60"><button class="btn" id="presetSave">Save current settings</button></div>
     </section>
 
-    <section>
+    <section class="a-ph">
       <h2>Phone</h2>
       <div class="stats">
         <div class="stat"><b>Temperature</b><span id="phTemp">–</span></div>
@@ -188,12 +194,11 @@
       <div class="row"><button class="btn" id="screenOff">Screen off now</button><button class="btn" id="screenOn">Screen on</button></div>
       <p class="note" style="margin-top:4px">Screen off turns only the display panel off; the camera keeps running and touches still reach the app. A back gesture on the phone (swipe in from a screen edge) turns it on again.</p>
     </section>
+    <section class="a-rec">
+      <h2>Recordings <span class="grow"></span><button class="btn small" id="clipsRefresh">Refresh</button></h2>
+      <div id="clips"><div class="empty">Loading…</div></div>
+    </section>
   </div>
-
-  <section style="margin-top:16px">
-    <h2>Recordings <span class="grow"></span><button class="btn small" id="clipsRefresh">Refresh</button></h2>
-    <div id="clips"><div class="empty">Loading…</div></div>
-  </section>
 
   <p class="note">Live view mirrors the phone's screen (overlays included) and sound comes from the phone's microphone; both run over adb, so keep Wireless debugging on.
     Setting ISO or shutter switches exposure to Manual; moving the focus slider switches autofocus off; moving white balance locks it (use the phone to return WB to auto). Space bar = record.</p>

@@ -46,6 +46,12 @@ function startEvents() {
   es.onerror = () => { P['@connected'] = false; scheduleRender(); };
 }
 
+// The timecode isn't always pushed while recording, so read it twice a second then.
+setInterval(async () => {
+  if (!dashboardOn || !state.recording) return;
+  try { P['/transports/0/timecode'] = await api('transports/0/timecode'); scheduleRender(); } catch {}
+}, 500);
+
 // Light safety net in case an event is missed.
 setInterval(() => { if (dashboardOn) refresh(['/transports/0/record', '/camera/power', '/media/workingset']); }, 10000);
 
@@ -57,7 +63,11 @@ function render() {
     state.recording = !!rec.recording;
     $('rec').classList.toggle('on', state.recording);
     $('rec').title = (state.recording ? 'Stop' : 'Start') + ' recording (space)';
+    $('liveTile').classList.toggle('recording', state.recording); // red box + timecode while recording
+    $('recTc').hidden = !state.recording;
   }
+  const tc = P['/transports/0/timecode'];
+  if (tc?.display) $('recTcText').textContent = tc.display;
 
   const sys = P['/system'], pow = P['/camera/power'], media = P['/media/workingset'];
   const vf = P['/system/videoFormat'] || sys?.videoFormat, cf = P['/system/codecFormat'] || sys?.codecFormat; // the /system event isn't shaped like REST /system

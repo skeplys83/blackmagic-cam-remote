@@ -88,6 +88,7 @@ $('launchBtn').onclick = (e) => setupAction('launch', {}, e.target);
 
 function startDashboard() {
   dashboardOn = true;
+  document.body.classList.remove('setup-mode');
   $('setup').hidden = true; $('dash').hidden = false;
   fitLiveTile();
   if (!useWebCodecs && !MSE) stageMsg("This browser can't show the live view. Use a current Chrome, Edge, Firefox or Safari.");
@@ -99,6 +100,7 @@ function startDashboard() {
 
 function stopDashboard() {
   $('dash').hidden = true; $('setup').hidden = false;
+  document.body.classList.add('setup-mode');
   if (!dashboardOn) return;
   dashboardOn = false;
   stopMirror();
