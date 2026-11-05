@@ -10,6 +10,26 @@ const sameRes = (a, b) => a && b && a.width === b.width && a.height === b.height
 function formats() { return P['/system/supportedFormats']?.supportedFormats || []; }
 
 let fmtBusy = null; // the format change in flight (see putFormat)
+// Off-speed (sensor) rates offered: the usual ones within the limits the camera reports for the active lens and
+// resolution (`/system/format` min/max), plus the high-speed rates of this format (120/240 where the sensor has
+// them). Tested: any whole rate from 15 to 60 works; between 60 and the high-speed rates the app refuses (400).
+// The list runs low → high with "Off" (= the project rate) in its place.
+const OFF_SPEED_RATES = [15, 16, 20, 24, 25, 30, 40, 45, 48, 50, 60];
+function offSpeedRates(f, fmt) {
+  const project = +f.frameRate, lo = f.minOffSpeedFrameRate, hi = f.maxOffSpeedFrameRate;
+  const rates = new Set(OFF_SPEED_RATES.concat((fmt?.frameRates || []).map(Number).filter(r => r > 60)));
+  if (f.offSpeedEnabled) rates.add(f.offSpeedFrameRate); // keep a value set on the phone visible
+  rates.delete(project);
+  const list = [...rates].filter(r => r >= lo && r <= hi).sort((a, b) => a - b).map(String);
+  const at = list.findIndex(r => +r > project);
+  list.splice(at < 0 ? list.length : at, 0, 'off');
+  return list;
+}
+function offSpeedLabel(v, project) {
+  if (v === 'off') return `Off · normal speed (${project} fps)`;
+  const x = +v / project, n = (k) => +k.toFixed(2);
+  return `${v} fps · ` + (x > 1 ? `${n(x)}× slower` : `${n(1 / x)}× faster`);
+}
 function renderFormat() {
   const f = P['/system/format'], list = formats(); if (!f || !list.length) return;
   const idx = list.findIndex(x => sameRes(x.recordResolution, f.recordResolution) && sameRes(x.sensorResolution, f.sensorResolution));
@@ -28,14 +48,11 @@ function renderFormat() {
   fillSelect(cs, codecs.length ? codecs : [f.codec], codecLabel);
   if (!fmtBusy && document.activeElement !== fps) fps.value = String(f.frameRate);
   if (!fmtBusy && document.activeElement !== cs) cs.value = f.codec;
-  $('fmtOff').checked = !!f.offSpeedEnabled;
-  const off = $('fmtOffFps'); off.min = f.minOffSpeedFrameRate; off.max = f.maxOffSpeedFrameRate;
-  if (document.activeElement !== off) off.value = f.offSpeedFrameRate;
-  off.disabled = !f.offSpeedEnabled;
-  $('fmtOffRange').textContent = `${f.minOffSpeedFrameRate}–${f.maxOffSpeedFrameRate} fps`;
+  const off = $('fmtOff'), offs = offSpeedRates(f, cur);
+  fillSelect(off, offs, (v) => offSpeedLabel(v, +f.frameRate));
+  if (!fmtBusy && document.activeElement !== off) off.value = f.offSpeedEnabled ? String(f.offSpeedFrameRate) : 'off';
   const a = P['/system/audioCodec']; $('fmtAudio').textContent = a ? a.codec : '–';
   for (const id of ['fmtRes', 'fmtFps', 'fmtCodec', 'fmtOff']) $(id).disabled = state.recording || !!fmtBusy;
-  if (state.recording || fmtBusy) off.disabled = true;
   $('fmtNote').hidden = !state.recording;
 }
 
@@ -93,11 +110,9 @@ $('fmtRes').onchange = async (e) => {
 };
 $('fmtFps').onchange = (e) => { putFormat({ frameRate: e.target.value }); e.target.blur(); };
 $('fmtCodec').onchange = (e) => { putFormat({ codec: e.target.value }); e.target.blur(); };
-$('fmtOff').onchange = (e) => putFormat({ offSpeedEnabled: e.target.checked });
-$('fmtOffFps').onchange = (e) => {
-  const f = P['/system/format']; const v = Math.round(+e.target.value);
-  if (f && v >= f.minOffSpeedFrameRate && v <= f.maxOffSpeedFrameRate) putFormat({ offSpeedFrameRate: v });
-  else toast(`Off-speed must be ${f?.minOffSpeedFrameRate}–${f?.maxOffSpeedFrameRate} fps`);
+$('fmtOff').onchange = (e) => {
+  const v = e.target.value; e.target.blur();
+  putFormat(v === 'off' ? { offSpeedEnabled: false } : { offSpeedEnabled: true, offSpeedFrameRate: +v });
 };
 
 // ---------- monitoring overlays ----------
