@@ -127,22 +127,34 @@ def known_phone_ip():
     return settings.get("phoneIp") or (settings.get("lastAddress") or "").rpartition(":")[0]
 
 
-def open_ports(ip, lo=30000, hi=65535):
-    """TCP ports open on ip (wireless debugging picks random ports in this range). Takes a few seconds."""
+# Wireless debugging listens on random high ports; every one seen so far was in 32768-49999, so scan that first.
+SCAN_ORDER = list(range(32768, 50000)) + list(range(50000, 65536)) + list(range(30000, 32768))
+
+
+def open_ports(ip, on_port=None, keep_going=lambda: True):
+    """Open TCP ports on ip, calling on_port(port) as soon as each is found.
+
+    400 probes at a time with a 1 s timeout: fast on a LAN, and still reliable through Docker Desktop's
+    network layer (which drops everything when flooded). A full sweep takes about 10-30 s.
+    """
     async def scan():
-        sem = asyncio.Semaphore(800)
-        found = []
+        sem = asyncio.Semaphore(400)
+        found = set()
 
         async def probe(port):
+            if not keep_going():
+                return
             async with sem:
                 try:
-                    _, w = await asyncio.wait_for(asyncio.open_connection(ip, port), 0.5)
+                    _, w = await asyncio.wait_for(asyncio.open_connection(ip, port), 1.0)
                     w.close()
-                    found.append(port)
+                    found.add(port)
+                    if on_port:
+                        on_port(port)
                 except Exception:
                     pass
-        await asyncio.gather(*(probe(p) for p in range(lo, hi + 1)))
-        return set(found)
+        await asyncio.gather(*(probe(p) for p in SCAN_ORDER))
+        return found
     return asyncio.run(scan())
 
 
@@ -168,9 +180,9 @@ def qr_start(ip=""):
 def _qr_watch(name, password, ip):
     """Find the phone's pairing port after it scans the QR code, pair, then connect.
 
-    Two ways to find it, whichever answers first: mDNS (the phone advertises _adb-tls-pairing._tcp under
-    the QR's name), and, when the phone's IP is known, watching that IP for the port that opens after the
-    scan. The second one works where mDNS can't reach (Docker Desktop on macOS/Windows).
+    Two ways to find it, whichever answers first: mDNS (the phone advertises _adb-tls-pairing._tcp under the
+    QR's name), and, when the phone's IP is known, scanning that IP: every open port found gets a pairing
+    attempt right away (wrong ports just refuse). The scan works where mDNS can't reach (Docker Desktop).
     """
     def current():
         with _qr_lock:
@@ -182,74 +194,92 @@ def _qr_watch(name, password, ip):
                 _qr.update(state=state, message=message)
 
     found = queue.Queue()
-    scan = {"baseline": None}
+    # Ports that can't be the pairing port: the camera's API and its remote-control port, and the
+    # phone's connect port if we know it from an earlier connection.
+    skip = {config.API_PORT, 2222}
+    last = settings.get("lastAddress") or ""
+    if last.startswith(ip + ":"):
+        skip.add(int(last.rpartition(":")[2]))
 
-    def watch_ports():
+    def scan_loop():
+        seen = set()
+
+        def on_port(port):
+            if port not in seen and port not in skip:
+                seen.add(port)
+                found.put(f"{ip}:{port}")
         try:
-            scan["baseline"] = known = open_ports(ip)
             while current():
-                ports = open_ports(ip)
-                for port in sorted(ports - known):
-                    found.put(f"{ip}:{port}")
-                known |= ports
+                open_ports(ip, on_port, current)
+                seen.clear()  # next sweep: offer ports again (e.g. a pairing port that opened late)
         except Exception as e:
-            print("qr: port watch failed:", e, flush=True)
+            print("qr: port scan failed:", e, flush=True)
 
     if ip:
-        threading.Thread(target=watch_ports, daemon=True).start()
+        threading.Thread(target=scan_loop, daemon=True).start()
         set_state("waiting", f"Scan the code with the phone (watching {ip})")
-    seen_mdns, tried = False, set()
+    seen_mdns, tried, refused = False, set(), []
     deadline = time.time() + 180
     while time.time() < deadline and current():
         services = mdns_services()
         seen_mdns = seen_mdns or bool(services)
         candidates = [s[2] for s in services if s[0] == name and s[1] == "_adb-tls-pairing._tcp"]
-        while not found.empty():
-            candidates.append(found.get())
+        try:
+            candidates.append(found.get(timeout=1))
+            while not found.empty():
+                candidates.append(found.get_nowait())
+        except queue.Empty:
+            pass
         for addr in candidates:
             if addr in tried:
                 continue
             tried.add(addr)
-            set_state("pairing", f"Pairing with {addr}…")
-            out = subprocess.run(["adb", "pair", addr, password], capture_output=True, text=True, timeout=20)
-            msg = (out.stdout + out.stderr).strip()
+            set_state("pairing", f"Trying to pair with {addr}…")
+            try:
+                out = subprocess.run(["adb", "pair", addr, password], capture_output=True, text=True, timeout=8)
+                msg = (out.stdout + out.stderr).strip()
+            except subprocess.TimeoutExpired:
+                msg = "no answer"
             if "Successfully paired" in msg:
-                return _connect_after_pairing(addr, scan.get("baseline") or set(), set_state)
-            set_state("waiting", f"{addr} didn't accept the pairing ({msg or 'no answer'}); still watching…")
+                return _connect_after_pairing(addr, refused, set_state)
+            refused.append(addr)
+            set_state("waiting", f"Scan the code with the phone (watching {ip or 'the network'})")
         if not seen_mdns and not ip and time.time() - _qr["started"] > 20:
             set_state("waiting", "The phone isn't found automatically here (no local-network discovery, e.g. Docker Desktop). "
                                  "Enter the phone's IP address below and show a new code, or pair with a code instead.")
-        time.sleep(1)
     if current():
         set_state("timeout", "The code expired. Show a new one to try again.")
 
 
-def _connect_after_pairing(pair_addr, baseline, set_state):
+def _connect_after_pairing(pair_addr, refused, set_state):
     ip, _, pair_port = pair_addr.rpartition(":")
     settings.update({"phoneIp": ip})
     set_state("connecting", "Paired. Connecting…")
 
     def connect(addr):
-        out = subprocess.run(["adb", "connect", addr], capture_output=True, text=True, timeout=10)
-        if "connected to" in out.stdout + out.stderr:
+        try:
+            out = subprocess.run(["adb", "connect", addr], capture_output=True, text=True, timeout=10)
+        except subprocess.TimeoutExpired:
+            return False
+        if "connected to" in out.stdout + out.stderr and "failed" not in out.stdout + out.stderr:
             settings.update({"lastAddress": addr})
             set_state("done", f"Paired and connected to {addr}")
             return True
         return False
 
-    for _ in range(5):  # mDNS: the phone advertises its connect port right after pairing
+    for _ in range(3):  # mDNS: the phone advertises its connect port right after pairing
         for s in mdns_services():
             if s[1] == "_adb-tls-connect._tcp" and s[2].startswith(ip + ":") and connect(s[2]):
                 return
         time.sleep(1)
-    # No mDNS: try the other open ports (the connect port is open while Wireless debugging is on).
-    skip = {int(pair_port), config.API_PORT, 2222}
-    for port in sorted((open_ports(ip) | baseline) - skip):
-        try:
-            if connect(f"{ip}:{port}"):
-                return
-        except subprocess.TimeoutExpired:
-            pass
+    # Without mDNS: the connect port is one of the open ports that refused pairing, or the last known one.
+    last = settings.get("lastAddress") or ""
+    for addr in ([last] if last.startswith(ip + ":") else []) + refused:
+        if connect(addr):
+            return
+    for port in sorted(open_ports(ip) - {int(pair_port), config.API_PORT, 2222}):
+        if connect(f"{ip}:{port}"):
+            return
     set_state("done", "Paired. Enter the IP address & port from the Wireless debugging screen below to connect.")
 
 
