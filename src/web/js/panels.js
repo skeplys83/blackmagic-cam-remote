@@ -43,17 +43,18 @@ function putFormat(changes) {
 // Resolution changes go through the helper (the app's API reverts them otherwise; see recformat.py).
 $('fmtRes').onchange = async (e) => {
   const x = formats()[+e.target.value], f = P['/system/format']; if (!x || !f) return;
-  const sel = e.target; sel.disabled = true; toast('Changing resolution…');
+  const sel = e.target; sel.disabled = true; state.resChanging = true; toast('Changing resolution…');
   try {
     const r = await fetch('/format/resolution', { method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ width: x.recordResolution.width, height: x.recordResolution.height, openGate: /open gate/i.test(x.resolutionDescriptor.description) }) });
     const j = await r.json(); if (!r.ok) throw new Error(j.error);
+    onVideoFormat(j); // resize the live view right away
     await refresh(['/system', '/system/format', '/system/videoFormat']);
     const now = P['/system/format'];
     if (now && !x.frameRates.includes(now.frameRate)) putFormat({ frameRate: x.frameRates[0] }); // not available at this size
     toast('Resolution: ' + j.name);
   } catch (err) { toast('Resolution: ' + err.message); refresh(['/system/format']); }
-  sel.disabled = false;
+  sel.disabled = false; state.resChanging = false;
 };
 $('fmtFps').onchange = (e) => putFormat({ frameRate: e.target.value });
 $('fmtCodec').onchange = (e) => putFormat({ codec: e.target.value });

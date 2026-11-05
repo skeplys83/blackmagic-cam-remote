@@ -34,6 +34,8 @@ function onCameraSnapshot(data) {
 function onCameraChange({ p, v }) {
   if (p === '/transports/0/record' && P[p] && P[p].recording && !v.recording) setTimeout(loadClips, 1500); // a clip just finished
   if (p === '/presets') setTimeout(() => refresh(['/presets/active']), 200);
+  // (while the page itself changes the resolution, the camera passes through other formats; the page handles that one)
+  if (p === '/system/videoFormat' && !state.resChanging && P[p] && (P[p].width !== v.width || P[p].height !== v.height)) onVideoFormat(v);
   P[p] = v; lastEvent[p] = Date.now(); scheduleRender();
 }
 

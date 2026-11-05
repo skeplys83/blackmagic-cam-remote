@@ -18,11 +18,50 @@ function stageMsg(text) { // shown in a rounded box over the picture
   $('stageMsg').replaceChildren(...(text ? [box] : [])); $('stageMsg').hidden = !text;
 }
 
+// Where the camera picture sits on the phone screen. Asking the phone takes ~2.5 s (a UI dump), so after a
+// resolution change the page first predicts the new area, then confirms it.
 async function fetchViewport() {
   try {
     const r = await fetch('/viewport'); if (!r.ok) throw 0;
-    mirror.vp = await r.json();
-  } catch { mirror.vp = null; }
+    const vp = await r.json();
+    if (mirror.expect) { // right after a format change: ignore a layout the app hasn't updated yet
+      const [x1, y1, x2, y2] = vp.viewport, ar = (x2 - x1) / (y2 - y1);
+      const want = vp.screen[1] > vp.screen[0] ? mirror.expect.h / mirror.expect.w : mirror.expect.w / mirror.expect.h;
+      if (Math.abs(ar - want) / want > 0.03) {
+        if (++mirror.expect.tries < 6) setTimeout(fetchViewport, 1000);
+        return;
+      }
+      mirror.expect = null;
+    }
+    rememberViewportSpace(vp);
+    mirror.vp = vp;
+  } catch { if (!mirror.expect) mirror.vp = null; }
+}
+
+// The app shows the picture as large as fits in a fixed area, centered. Remember the largest width and height
+// seen per screen orientation, to predict the area for another aspect ratio.
+const vpSpace = {};
+function rememberViewportSpace(vp) {
+  const key = vp.screen.join('x'), [x1, y1, x2, y2] = vp.viewport, s = vpSpace[key] || { w: 0, h: 0 };
+  vpSpace[key] = { w: Math.max(s.w, x2 - x1), h: Math.max(s.h, y2 - y1), cx: (x1 + x2) / 2, cy: (y1 + y2) / 2 };
+}
+
+function predictViewport(width, height) {
+  const vp = mirror.vp; if (!vp) return;
+  const space = vpSpace[vp.screen.join('x')]; if (!space) return;
+  const portrait = vp.screen[1] > vp.screen[0];
+  const ar = portrait ? height / width : width / height; // the sensor is landscape; the picture turns with the screen
+  let w = space.w, h = w / ar;
+  if (h > space.h * 1.35) { h = space.h * 1.35; w = h * ar; } // can grow taller than seen so far, within reason
+  mirror.vp = { screen: vp.screen, viewport: [space.cx - w / 2, space.cy - h / 2, space.cx + w / 2, space.cy + h / 2].map(Math.round) };
+}
+
+// Called when the camera reports a new video format.
+function onVideoFormat(f) {
+  if (!f?.width || !f?.height) return;
+  predictViewport(f.width, f.height);
+  mirror.expect = { w: f.width, h: f.height, tries: 0 };
+  setTimeout(fetchViewport, 700); // confirm once the app has laid out the new size (retries if it hasn't yet)
 }
 
 function cropRect() {
