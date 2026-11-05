@@ -6,6 +6,8 @@
 const P = {};
 const lastEvent = {}; // property -> time of its last pushed update
 const FALLBACK = ['/system/videoFormat', '/system/codecFormat', '/system/format', '/system/supportedFormats', '/system/audioCodec', '/camera/power', '/media/workingset',
+  '/lens/opticalImageStabilization', '/transports/0/proxyRecording', '/audio/channels',
+  ...[0, 1].flatMap(n => [`/audio/channel/${n}/input`, `/audio/channel/${n}/supportedInputs`, `/audio/channel/${n}/level`, `/audio/channel/${n}/available`]),
   '/video/autoExposure', '/video/supportedISOs', '/video/iso', '/video/shutter', '/video/supportedShutters', '/video/whiteBalance',
   '/lens/iris', '/lens/focus/autoFocus', '/lens/focus', '/lens/zoom/description', '/lens/zoom', '/lens/cameras', '/transports/0/record',
   '/transports/0/timecode', '/presets', '/presets/active', '/monitoring/focusAssist', '/monitoring/zebra', '/monitoring/frameGuideRatio',
@@ -86,12 +88,17 @@ function render() {
     if (![...sel.options].some(o => +o.value === iso.iso)) sel.insertAdjacentHTML('afterbegin', `<option value="${iso.iso}" data-auto>${iso.iso} (auto)</option>`);
     sel.value = iso.iso;
   }
-  if (shuts) fillSelect($('shutter'), shuts.shutterSpeeds, v => '1/' + v);
+  // Shutter as speed (1/48) or angle (180°; the camera counts angles in hundredths of a degree).
+  const byAngle = shut?.measurement === 'ShutterAngle';
+  if (shut) setSeg('shutterMode', shut.measurement);
+  const fmtShutter = (v) => byAngle ? `${+(v / 100).toFixed(1)}°` : `1/${v}`;
+  const shutterList = byAngle ? shuts?.shutterAngles : shuts?.shutterSpeeds;
+  if (shutterList) fillSelect($('shutter'), shutterList, fmtShutter);
   if (shut) {
-    const sel = $('shutter');
+    const sel = $('shutter'), cur = byAngle ? shut.shutterAngle : shut.shutterSpeed;
     sel.querySelectorAll('[data-auto]').forEach(o => o.remove());
-    if (![...sel.options].some(o => +o.value === shut.shutterSpeed)) sel.insertAdjacentHTML('afterbegin', `<option value="${shut.shutterSpeed}" data-auto>1/${shut.shutterSpeed} (auto)</option>`);
-    sel.value = shut.shutterSpeed;
+    if (cur != null && ![...sel.options].some(o => +o.value === cur)) sel.insertAdjacentHTML('afterbegin', `<option value="${cur}" data-auto>${fmtShutter(cur)} (auto)</option>`);
+    if (cur != null) sel.value = cur;
   }
   $('iso').disabled = $('shutter').disabled = !manualExp;
   if (iris) $('iris').textContent = 'f/' + iris.apertureStop.toFixed(1) + ' (fixed)';
@@ -119,7 +126,7 @@ function render() {
     if (act) { setSeg('lenses', act.id); $('lensNow').textContent = `${act.facing === 'front' ? 'Front' : act.zoomFactor} · ${act.focalLength}mm`; }
   }
 
-  renderFormat(); renderMonitoring(); renderPresets();
+  renderFormat(); renderMonitoring(); renderPresets(); renderQuick(); renderAudio();
 }
 
 // ---------- controls ----------
@@ -132,7 +139,13 @@ document.addEventListener('keydown', (e) => {
 
 $('ae').onclick = (e) => { const v = e.target.dataset.v; if (v) send('video/autoExposure', 'PUT', { mode: v, type: null }, 'Auto exposure'); };
 $('iso').onchange = (e) => send('video/iso', 'PUT', { iso: +e.target.value }, 'ISO');
-$('shutter').onchange = (e) => send('video/shutter', 'PUT', { shutterSpeed: +e.target.value }, 'Shutter');
+$('shutter').onchange = (e) => send('video/shutter', 'PUT',
+  P['/video/shutter']?.measurement === 'ShutterAngle' ? { shutterAngle: +e.target.value } : { shutterSpeed: +e.target.value }, 'Shutter');
+$('shutterMode').onclick = async (e) => {
+  const v = e.target.dataset.v; if (!v) return;
+  await send('video/shutter/measurement', 'PUT', { measurement: v }, 'Shutter as');
+  refresh(['/video/shutter', '/video/supportedShutters']);
+};
 $('wbAuto').onclick = () => send('video/whiteBalance/doAuto', 'PUT', undefined, 'Auto WB');
 $('af').onclick = (e) => {
   const v = e.target.dataset.v; if (!v) return;

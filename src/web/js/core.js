@@ -47,7 +47,9 @@ function fmtMins(s) {
 }
 
 function fillSelect(sel, values, fmt) {
-  if (sel.options.length === values.length) return;
+  const key = values.join(',');
+  if (sel.dataset.key === key) return;
+  sel.dataset.key = key;
   sel.innerHTML = values.map(v => `<option value="${v}">${fmt(v)}</option>`).join('');
 }
 

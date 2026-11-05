@@ -199,3 +199,56 @@ async function setScreen(on) {
 }
 $('screenOff').onclick = () => setScreen(false);
 $('screenOn').onclick = () => setScreen(true);
+
+// ---------- quick settings: stabilization, proxy recording, exposure tools ----------
+
+function renderQuick() {
+  const ois = P['/lens/opticalImageStabilization'];
+  if (ois) { $('ois').checked = !!ois.enabled; $('ois').disabled = ois.controlAvailable === false; }
+  const proxy = P['/transports/0/proxyRecording'];
+  if (proxy) { $('proxy').checked = !!proxy.enabled; $('proxy').disabled = state.recording; }
+  for (const b of $('exposureTools').querySelectorAll('button')) b.classList.toggle('active', !!P[`/monitoring/LCD/${b.dataset.k}`]?.enabled);
+}
+$('ois').onchange = (e) => send('lens/opticalImageStabilization', 'PUT', { enabled: e.target.checked }, 'Stabilization');
+$('proxy').onchange = (e) => send('transports/0/proxyRecording', 'PUT', { enabled: e.target.checked }, 'Proxy recording');
+$('exposureTools').onclick = (e) => {
+  const k = e.target.dataset.k; if (!k) return;
+  send(`monitoring/Device/${k}`, 'PUT', { enabled: !P[`/monitoring/LCD/${k}`]?.enabled }, e.target.textContent);
+};
+
+// ---------- audio: input and gain per channel ----------
+
+// Input names come as "Phone Microphone" in the input list but "PhoneMicrophone" as the current input, and
+// only "Phone Microphone" is accepted when setting it; so the page uses the spaced form everywhere.
+const inputLabel = (v) => v.replace(/([a-z])([A-Z])/g, '$1 $2');
+
+function renderAudio() {
+  const n = P['/audio/channels']?.channels ?? 0, box = $('audioChannels');
+  if (!n) return;
+  if (box.dataset.n !== String(n)) {
+    box.dataset.n = n;
+    box.innerHTML = Array.from({ length: n }, (_, i) => `<div class="audch" data-ch="${i}">
+      <div class="row"><label>Input ${i + 1}</label><select class="audIn" data-ch="${i}"></select></div>
+      <div class="field"><div class="fhead"><label>Gain ${i + 1}</label><output id="audGainOut${i}">–</output></div>
+        <input type="range" id="audGain${i}" min="0" max="1" step="0.01"></div>
+    </div>`).join('');
+    for (let i = 0; i < n; i++) {
+      slider(`audGain${i}`, `audGainOut${i}`, v => Math.round(v * 100) + '%',
+        v => send(`audio/channel/${i}/level`, 'PUT', { gain: v, normalized: v, normalised: v }, `Gain ${i + 1}`));
+    }
+  }
+  for (let i = 0; i < n; i++) {
+    const sel = box.querySelector(`.audIn[data-ch="${i}"]`), inputs = P[`/audio/channel/${i}/supportedInputs`];
+    if (Array.isArray(inputs)) fillSelect(sel, inputs.filter(x => x.available !== false).map(x => inputLabel(x.input)), (v) => v);
+    const cur = P[`/audio/channel/${i}/input`]?.input && inputLabel(P[`/audio/channel/${i}/input`].input);
+    if (cur && document.activeElement !== sel) sel.value = cur;
+    sel.disabled = state.recording;
+    const lvl = P[`/audio/channel/${i}/level`];
+    if (lvl) setSlider(`audGain${i}`, lvl.normalized ?? lvl.gain, `audGainOut${i}`, Math.round((lvl.normalized ?? lvl.gain) * 100) + '%');
+  }
+}
+$('audioChannels').addEventListener('change', (e) => {
+  if (!e.target.classList.contains('audIn')) return;
+  const i = e.target.dataset.ch;
+  send(`audio/channel/${i}/input`, 'PUT', { input: inputLabel(e.target.value) }, `Input ${+i + 1}`);
+});

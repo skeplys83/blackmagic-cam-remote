@@ -179,12 +179,16 @@ input[type=range]:disabled { cursor: default; opacity: .4; }
 /* ---------- second-level settings: a fixed grid ---------- */
 .settings { display: grid; gap: 14px; margin-top: 14px; align-items: stretch;
             grid-template-columns: repeat(4, minmax(0, 1fr));
-            grid-template-areas: "exp wb  mon mon"
-                                 "pre ph  mon mon"
+            grid-template-areas: "exp wb  aud ph"
+                                 "mon mon pre pre"
                                  "rec rec rec rec"; }
 .settings > section { min-width: 0; }
 .a-exp { grid-area: exp; } .a-wb { grid-area: wb; } .a-mon { grid-area: mon; }
 .a-pre { grid-area: pre; } .a-ph { grid-area: ph; } .a-rec { grid-area: rec; }
+.a-aud { grid-area: aud; }
+.audch + .audch { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line); }
+.audch .row label { width: 64px; }
+.audch select { flex: 1; min-width: 0; }
 .moncols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px; align-items: start; }
 .moncols table.mon { margin-bottom: 0; }
 .monset .row label { width: 84px; }
@@ -193,7 +197,7 @@ input[type=range]:disabled { cursor: default; opacity: .4; }
 .a-ph .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 @media (max-width: 1300px) {
   .settings { grid-template-columns: repeat(2, minmax(0, 1fr));
-              grid-template-areas: "exp wb" "mon mon" "pre ph" "rec rec"; }
+              grid-template-areas: "exp wb" "aud ph" "mon mon" "pre pre" "rec rec"; }
 }
 
 /* Messages over the live view get the same rounded dark box as the record button. */
@@ -235,3 +239,4 @@ input[type=range]::-moz-range-track { height: 6px; border-radius: 6px; }
 input[type=range]::-webkit-slider-thumb { width: 28px; height: 28px; margin-top: -11px; border-width: 3px; }
 input[type=range]::-moz-range-thumb { width: 22px; height: 22px; border-width: 3px; }
 .field { gap: 2px; }
+.row label.check { width: auto; flex: 1 1 auto; min-width: 0; }
