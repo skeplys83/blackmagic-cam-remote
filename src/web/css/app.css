@@ -9,11 +9,13 @@
 body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.4 -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif; }
 /* Page: phone info as a sidebar on the left, everything else to its right. */
 .wrap { max-width: 1760px; margin: 0 auto; padding: 16px; display: grid; grid-template-columns: max-content minmax(0, 1fr); column-gap: 12px; align-items: start; }
-.wrap > header { grid-column: 1; grid-row: 1 / span 20; }
-.wrap > :not(header) { grid-column: 2; }
+.wrap > .sidebar { grid-column: 1; grid-row: 1 / span 20; }
+.wrap > :not(.sidebar) { grid-column: 2; }
+/* Sidebar: the app icon, then the phone info box; both as narrow as the box's content. */
+.sidebar { position: sticky; top: calc(16px + env(safe-area-inset-top, 0px)); display: grid; grid-template-columns: min-content; gap: 10px; }
 
 /* As narrow as its longest word; it grows downwards instead. */
-header { position: sticky; top: calc(16px + env(safe-area-inset-top, 0px)); display: flex; flex-direction: column; gap: 12px;
+header { display: flex; flex-direction: column; gap: 12px;
          width: min-content; padding: 10px 8px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; }
 header h1 { font-size: 12px; font-weight: 600; margin: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
 header h1 .dot { margin: 0; }
@@ -24,14 +26,16 @@ header .stat b { font-size: 9.5px; }
 header .stat span { font-size: 12px; }
 header .stat { gap: 1px; }
 /* The setup screen gets the whole width; no phone sidebar there. */
-body.setup-mode header { display: none; }
+body.setup-mode .sidebar { display: none; }
 body.setup-mode .wrap { grid-template-columns: minmax(0, 1fr); }
+body.setup-mode .wrap > :not(.sidebar) { grid-column: 1; }
 
 /* Narrow windows: back to a bar on top. */
 @media (max-width: 900px) {
   .wrap { grid-template-columns: minmax(0, 1fr); }
-  .wrap > header, .wrap > :not(header) { grid-column: 1; grid-row: auto; }
-  header { position: static; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 12px 24px; margin-bottom: 16px; }
+  .wrap > .sidebar, .wrap > :not(.sidebar) { grid-column: 1; grid-row: auto; }
+  .sidebar { position: static; grid-template-columns: 56px minmax(0, 1fr); align-items: start; margin-bottom: 16px; }
+  header { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 12px 24px; }
   header { width: auto; }
   header h1 { flex-direction: row; align-items: center; }
   .pills { flex-direction: row; }
@@ -120,7 +124,7 @@ label.check { display: flex; align-items: center; gap: 8px; width: auto; color: 
 .btn:disabled, select:disabled { opacity: .45; cursor: default; }
 
 /* Setup screen */
-#setup { max-width: 1100px; margin: 0 auto; }
+#setup { width: 100%; max-width: 1100px; margin: 0 auto; }
 #setup h1 { font-size: 22px; margin: 0 0 6px; }
 #setup .lead { color: var(--dim); margin: 0 0 18px; }
 .steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; align-items: start; }
@@ -241,15 +245,9 @@ input[type=range]::-moz-range-thumb { width: 22px; height: 22px; border-width: 3
 .field { gap: 2px; }
 .row label.check { width: auto; flex: 1 1 auto; min-width: 0; }
 
-/* App icon and name at the top of the sidebar: a link to the project on GitHub. */
-.brand { display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center; color: var(--text); text-decoration: none;
-         padding-bottom: 10px; border-bottom: 1px solid var(--line); -webkit-tap-highlight-color: transparent; }
-.brand img { width: 40px; height: 40px; border-radius: 9px; display: block; }
-.brand span { font-size: 10px; font-weight: 600; line-height: 1.25; color: var(--dim); }
-.brand:hover span { color: var(--text); }
+/* App icon above the phone info, as wide as it: a link to the project on GitHub. */
+.brand { display: block; border-radius: 22%; -webkit-tap-highlight-color: transparent; transition: transform .15s; }
+.brand:hover { transform: scale(1.04); }
+.brand img { display: block; width: 100%; height: auto; aspect-ratio: 1; }
 .setuptitle { display: flex; align-items: center; gap: 12px; }
-.setuptitle img { width: 40px; height: 40px; border-radius: 9px; display: block; }
-@media (max-width: 900px) {
-  .brand { flex-direction: row; padding-bottom: 0; border-bottom: 0; }
-  .brand img { width: 32px; height: 32px; }
-}
+.setuptitle img { width: 40px; height: 40px; display: block; }
