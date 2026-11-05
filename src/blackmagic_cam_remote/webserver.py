@@ -12,7 +12,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-from . import auth, config, events
+from . import auth, config, events, readiness
 from .adb import phone_host
 from .mirror import PRESETS, T_REPLACED, Mirror, take_over
 from .phone import orientation, phone_status, viewport
@@ -183,7 +183,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if u.path == "/mirror":
                 return self._mirror(q)
             if u.path == "/setup":
-                return self._json(setup_status())
+                return self._json(readiness.readiness.snapshot() or setup_status())
+            if u.path == "/setup/events":
+                return self._setup_events()
             if u.path == "/events":
                 return self._events()
             if u.path == "/phone":
@@ -233,6 +235,30 @@ class Handler(http.server.BaseHTTPRequestHandler):
         finally:
             events.hub.unsubscribe(q)
 
+    def _setup_events(self):
+        """Readiness pushed as it changes (Server-Sent Events): decides setup screen vs. dashboard."""
+        q, state = readiness.readiness.subscribe()
+        self.send_response(200)
+        self.send_header("Content-Type", "text/event-stream")
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Connection", "close")
+        self.end_headers()
+        self.close_connection = True
+        try:
+            if state:
+                self.wfile.write(f"data: {json.dumps(state)}\n\n".encode())
+                self.wfile.flush()
+            while True:
+                try:
+                    self.wfile.write(f"data: {json.dumps(q.get(timeout=15))}\n\n".encode())
+                except queue.Empty:
+                    self.wfile.write(b": keepalive\n\n")
+                self.wfile.flush()
+        except OSError:
+            pass
+        finally:
+            readiness.readiness.unsubscribe(q)
+
     def _local_write(self):
         u = urllib.parse.urlparse(self.path)
         length = int(self.headers.get("Content-Length") or 0)
@@ -244,7 +270,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if u.path == "/automation" and self.command in ("PUT", "POST"):
                 return self._json(settings.update({k: v for k, v in body.items() if k != "lastAddress"}, toggles_only=True))
             if u.path.startswith("/setup/") and self.command == "POST":
-                return self._json(setup_action(u.path[len("/setup/"):], body))
+                result = setup_action(u.path[len("/setup/"):], body)
+                if readiness.readiness and not u.path.endswith("qr-status"):
+                    readiness.readiness.recheck.set()  # re-run the checks right away
+                return self._json(result)
         except ValueError as e:
             return self._error(e, 400)
         except Exception as e:

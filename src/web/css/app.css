@@ -13,6 +13,9 @@ header { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px; pa
 header h1 { font-size: 15px; font-weight: 600; margin: 0; margin-right: auto; display: flex; align-items: center; gap: 8px; }
 .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--dim); flex: none; }
 .dot.ok { background: var(--ok); } .dot.bad { background: var(--rec); }
+.pill { font-size: 12px; padding: 3px 10px; border-radius: 99px; background: #2a2f37; color: var(--dim); white-space: nowrap; }
+.pill.ok { background: rgba(60, 207, 122, .15); color: var(--ok); }
+.pill.bad { background: rgba(229, 48, 58, .15); color: #ff6b73; }
 .stat { display: flex; flex-direction: column; }
 .stat b { font-size: 11px; font-weight: 500; color: var(--dim); text-transform: uppercase; letter-spacing: .06em; }
 .stat span { font-variant-numeric: tabular-nums; font-size: 15px; }

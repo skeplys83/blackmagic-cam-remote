@@ -56,13 +56,13 @@ def setup_status():
         d = ready_devs[0]
         wireless = ":" in d["serial"] or "_adb-tls-connect" in d["serial"]
         phone.append(_check(True, "Connected over wireless debugging" if wireless else "Connected (over USB)",
-                            f"{d['model'] or d['serial']} · {d['serial']}" + ("" if wireless else " · wireless debugging is recommended")))
+                            f"{d['model'] or d['serial']} · {d['serial']}" + ("" if wireless else " · wireless debugging is recommended"), id="adb"))
     elif any(d["state"] == "unauthorized" for d in devices):
         phone.append(_check(False, "Connected over wireless debugging", "the phone hasn't allowed this computer yet",
-                            "Unlock the phone and confirm the debugging prompt, or pair again below."))
+                            "Unlock the phone and confirm the debugging prompt, or pair again below.", id="adb"))
     else:
         phone.append(_check(False, "Connected over wireless debugging", "no phone connected",
-                            "Turn on Wireless debugging on the phone and pair it below (QR code or pairing code)."))
+                            "Turn on Wireless debugging on the phone and pair it below (QR code or pairing code).", id="adb"))
 
     if ready_devs:
         try:

@@ -2,9 +2,10 @@
 
 // ---------- setup ----------
 
-// The dashboard only runs while every check passes. If one fails, it stops (live view, events, polling)
-// and the setup screen shows until everything is ready again.
-let dashboardOn = false, notReadyCount = 0, lastSetup = null;
+// The dashboard only runs while every check passes. The helper pushes the setup state as it changes
+// (/setup/events): phone connection and "app in front" within a fraction of a second, the rest every few seconds.
+// If anything fails, the dashboard stops (live view, events, polling) and the setup screen shows.
+let dashboardOn = false, lastSetup = null;
 
 function renderSetup(st) {
   lastSetup = st;
@@ -24,21 +25,28 @@ function renderSetup(st) {
   $('launchRow').hidden = !st.groups.app.some(c => c.id === 'app-front' && !c.ok);
 }
 
-async function checkSetup() {
-  let st;
-  try { st = await (await fetch('/setup')).json(); }
-  catch { st = { ready: false, groups: { computer: [{ ok: false, title: 'Helper running', detail: "can't reach the helper", fix: 'Start it again (docker compose up -d).' }], phone: [], app: [] } }; }
+function applySetup(st) {
   renderSetup(st);
-  if (st.ready) {
-    notReadyCount = 0;
-    if (!dashboardOn) startDashboard();
-  } else {
-    // The app leaving the front (e.g. swiping home) stops everything at once; for other failures while in use,
-    // one failed check may be a hiccup, so it takes two in a row.
-    const appGone = Object.values(st.groups).flat().some(c => c.id === 'app-front' && !c.ok);
-    if (appGone || ++notReadyCount >= (dashboardOn ? 2 : 1)) stopDashboard();
-  }
-  setTimeout(checkSetup, dashboardOn ? 3000 : 2000);
+  renderLive(st.live);
+  if (st.ready) { if (!dashboardOn) startDashboard(); }
+  else stopDashboard();
+}
+
+// Live status pills in the header: phone connection and Blackmagic Camera in front.
+function renderLive(live) {
+  const pill = (id, ok, text) => { $(id).textContent = text; $(id).className = 'pill ' + (ok ? 'ok' : 'bad'); };
+  if (!live) { pill('livePhone', false, 'Helper offline'); pill('liveApp', false, 'App –'); return; }
+  pill('livePhone', live.connected, live.connected ? `Phone · ${live.wireless ? 'Wi-Fi' : 'USB'}` : 'Phone disconnected');
+  pill('liveApp', live.inFront, live.inFront ? 'App in front' : 'App not in front');
+}
+
+const HELPER_DOWN = { ready: false, live: null, groups: { computer: [{ ok: false, title: 'Helper running', detail: "can't reach the helper",
+  fix: 'Start it again (docker compose up -d).' }], phone: [], app: [] } };
+
+function watchSetup() {
+  const es = new EventSource('/setup/events');
+  es.onmessage = (e) => applySetup(JSON.parse(e.data));
+  es.onerror = () => applySetup(HELPER_DOWN); // EventSource reconnects by itself
 }
 
 async function setupAction(action, body, btn) {
@@ -101,4 +109,4 @@ setInterval(() => { if (dashboardOn) pollPhone(); }, 5000);
 
 // Prefill the phone IP if it's known from an earlier pairing.
 fetch('/setup/qr-status', { method: 'POST' }).then(r => r.json()).then(q => { if (q.knownIp) $('qrIp').value = q.knownIp; }).catch(() => {});
-checkSetup();
+watchSetup();

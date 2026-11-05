@@ -11,6 +11,7 @@ Modules:
   automation  actions when recording starts/stops
   events      live camera state from the app's event websocket
   setup       setup-screen checks, pairing, connecting
+  readiness   live connection / app-in-front state, pushed to the page
   recordings  clip list, playback/download, thumbnails
   auth        optional password login
   tls         HTTPS for the dashboard
