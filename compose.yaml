@@ -12,6 +12,7 @@ services:
       # Set if the phone's Wi-Fi IP can't be found automatically:
       # BCR_PHONE: "192.168.1.20"
       BCR_PHONE: ${BCR_PHONE:-}
+      BCR_COMPUTER_NAME: ${BCR_COMPUTER_NAME:-docker}   # shown on the phone as blackmagic-cam-remote@<this>
       BCR_DOCKER_LOCAL: "1"     # published on 127.0.0.1 only (see "ports"), so no password is needed
 
     # For a home server on your network, use compose.server.yaml instead.

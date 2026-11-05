@@ -11,7 +11,8 @@ Environment:
   BCR_PASSWORD   require a login
   BCR_TLS=1      serve HTTPS (self-signed unless BCR_TLS_CERT and BCR_TLS_KEY are set)
   BCR_TLS_HOSTS  extra names/IPs for the self-signed certificate, comma-separated
-  BCR_ADB_NAME   name of this computer in the phone's Paired devices list (set in the Docker image)
+  BCR_ADB_NAME   how this helper is listed in the phone's Paired devices ("<name>@<computer>"; set in Docker)
+  BCR_COMPUTER_NAME  the <computer> part (Docker: passed by start.sh; otherwise the real host name is used)
   SCRCPY_SERVER, SCRCPY_VERSION   location and version of scrcpy-server (found automatically when installed)
 
 The code lives in src/blackmagic_cam_remote/ (one module per concern) and src/web/ (the page).
@@ -24,7 +25,7 @@ import sys
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 
 from blackmagic_cam_remote import auth, config, events, readiness  # noqa: E402
-from blackmagic_cam_remote.adb import adb, name_adb_key  # noqa: E402
+from blackmagic_cam_remote.adb import adb, set_adb_identity  # noqa: E402
 from blackmagic_cam_remote.tls import tls_context  # noqa: E402
 from blackmagic_cam_remote.webserver import Handler, Server  # noqa: E402
 
@@ -42,7 +43,7 @@ def main():
         config.TLS = tls_context()
 
     if os.environ.get("BCR_ADB_NAME"):
-        name_adb_key(os.environ["BCR_ADB_NAME"])
+        set_adb_identity(os.environ["BCR_ADB_NAME"], os.environ.get("BCR_COMPUTER_NAME", ""))
     try:  # leftovers from a previous run (the phone's display comes back on when they exit)
         adb("shell", "pkill -f com.genymobile.scrcpy.Server", timeout=10)
     except Exception:

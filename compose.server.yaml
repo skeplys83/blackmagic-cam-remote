@@ -23,6 +23,7 @@ services:
       # BCR_TLS_CERT: /certs/fullchain.pem
       # BCR_TLS_KEY: /certs/privkey.pem
       BCR_PHONE: ${BCR_PHONE:-}
+      BCR_COMPUTER_NAME: ${BCR_COMPUTER_NAME:-docker}   # shown on the phone as blackmagic-cam-remote@<this>
 
 volumes:
   bcr-data:

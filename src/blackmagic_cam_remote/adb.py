@@ -1,7 +1,6 @@
 """Talking to the phone over adb: finding/reconnecting the device, running commands, locating scrcpy-server."""
 import glob
 import os
-import pathlib
 import re
 import subprocess
 import threading
@@ -56,22 +55,17 @@ def phone_host():
 def adb(*args, **kw):
     return subprocess.run(["adb", "-s", adb_serial(), *args], capture_output=True, **kw)
 
-def name_adb_key(name):
-    """Give this computer's adb key a readable name: the phone lists it under Wireless debugging → Paired devices.
+def set_adb_identity(name, computer=""):
+    """Name this computer in the phone's Wireless debugging → Paired devices list.
 
-    The name is the comment at the end of ~/.android/adbkey.pub, sent to the phone when pairing (it doesn't rename
-    a phone that is already paired). Must run before the adb server starts, which reads the key once.
+    adb sends "<LOGNAME>@<HOSTNAME>" when pairing (not the comment in adbkey.pub), and Android cuts the name
+    at the first space, so name should have none. Applies to new pairings; restarts the adb server so it
+    picks up the environment.
     """
-    d = pathlib.Path(os.path.expanduser("~")) / ".android"
-    key, pub = d / "adbkey", d / "adbkey.pub"
+    os.environ["LOGNAME"] = name.replace(" ", "-")
+    if computer:
+        os.environ["HOSTNAME"] = computer.replace(" ", "-")
     subprocess.run(["adb", "kill-server"], capture_output=True, timeout=15)
-    if not key.exists():
-        d.mkdir(parents=True, exist_ok=True)
-        subprocess.run(["adb", "keygen", str(key)], capture_output=True, timeout=30)
-    if pub.exists():
-        named = pub.read_text().split()[0] + " " + name + "\n"
-        if pub.read_text() != named:
-            pub.write_text(named)
 
 
 def scrcpy_server():

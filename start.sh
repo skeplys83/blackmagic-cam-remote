@@ -13,6 +13,8 @@ if ! docker info >/dev/null 2>&1; then
   exit 1
 fi
 
+# Shown on the phone (Wireless debugging → Paired devices) as blackmagic-cam-remote@<this computer>.
+export BCR_COMPUTER_NAME="${BCR_COMPUTER_NAME:-$(hostname -s 2>/dev/null || echo docker)}"
 docker compose up -d --build
 
 printf "Waiting for the dashboard"
