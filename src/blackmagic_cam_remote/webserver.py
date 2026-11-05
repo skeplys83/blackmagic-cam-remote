@@ -87,7 +87,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self._send(303, b"", "text/plain", [("Set-Cookie", cookie + ("; Secure" if config.TLS else "")), ("Location", "/")])
 
     def _static(self, path):
-        """Files under src/web/css and src/web/js."""
+        """Files under src/web/css, src/web/js and src/web/img."""
         f = (config.WEB / path.lstrip("/")).resolve()
         if config.WEB.resolve() not in f.parents or not f.is_file():
             return self._send(404, b"not found", "text/plain")
@@ -197,7 +197,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self._login_page() if auth.PASSWORD else self._send(303, b"", "text/plain", [("Location", "/")])
         if u.path == "/logout":
             return self._send(303, b"", "text/plain", [("Set-Cookie", f"{auth.COOKIE}=; Path=/; Max-Age=0"), ("Location", "/login")])
-        if u.path.startswith(("/css/", "/js/")):
+        if u.path.startswith(("/css/", "/js/", "/img/")):
             return self._static(u.path)
         if not self._authorized():
             if u.path in ("/", "/index.html"):

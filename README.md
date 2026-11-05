@@ -1,3 +1,5 @@
+<p align="center"><img src="src/web/img/icon-512.png" alt="Blackmagic Cam Remote icon" width="160"></p>
+
 # Blackmagic Cam Remote
 
 A browser dashboard for remote-controlling the **Blackmagic Camera** app on an Android phone from your computer: live view with overlays and sound, camera controls, recording format, monitoring overlays, presets, recordings, and phone health.

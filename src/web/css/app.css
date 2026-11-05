@@ -240,3 +240,16 @@ input[type=range]::-webkit-slider-thumb { width: 28px; height: 28px; margin-top:
 input[type=range]::-moz-range-thumb { width: 22px; height: 22px; border-width: 3px; }
 .field { gap: 2px; }
 .row label.check { width: auto; flex: 1 1 auto; min-width: 0; }
+
+/* App icon and name at the top of the sidebar: a link to the project on GitHub. */
+.brand { display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center; color: var(--text); text-decoration: none;
+         padding-bottom: 10px; border-bottom: 1px solid var(--line); -webkit-tap-highlight-color: transparent; }
+.brand img { width: 40px; height: 40px; border-radius: 9px; display: block; }
+.brand span { font-size: 10px; font-weight: 600; line-height: 1.25; color: var(--dim); }
+.brand:hover span { color: var(--text); }
+.setuptitle { display: flex; align-items: center; gap: 12px; }
+.setuptitle img { width: 40px; height: 40px; border-radius: 9px; display: block; }
+@media (max-width: 900px) {
+  .brand { flex-direction: row; padding-bottom: 0; border-bottom: 0; }
+  .brand img { width: 32px; height: 32px; }
+}
