@@ -1,4 +1,4 @@
-# Pixel Cam Remote
+# Blackmagic Cam Remote
 
 A browser dashboard for remote-controlling the **Blackmagic Camera** app on an Android phone from your computer: live view with overlays and sound, camera controls, recording format, monitoring overlays, presets, recordings, and phone health.
 
@@ -25,8 +25,8 @@ A browser dashboard for remote-controlling the **Blackmagic Camera** app on an A
 ## Quick start
 
 ```sh
-git clone https://github.com/skeplys83/pixel-cam-remote.git
-cd pixel-cam-remote
+git clone https://github.com/skeplys83/blackmagic-cam-remote.git
+cd blackmagic-cam-remote
 ./start.sh            # macOS: or double-click start.command
 ```
 
@@ -46,7 +46,7 @@ The dashboard opens on a **setup screen** with three checks. It re-checks every 
    - In the app: Settings → **Network Access** → turn on **Enable HTTP Server**.
    - The check confirms the server is listening on port 4444, that it's Blackmagic Camera listening (and not another app holding that port), and that your computer can reach it over Wi-Fi.
 
-Pairing keys, settings and thumbnails live in the `pcr-data` Docker volume, so you only pair once.
+Pairing keys, settings and thumbnails live in the `bcr-data` Docker volume, so you only pair once.
 
 ### QR pairing and where it works
 
@@ -54,18 +54,31 @@ QR pairing needs local-network discovery (mDNS) to find the phone after it scans
 
 | Where the dashboard runs | QR pairing | Code pairing |
 |---|---|---|
-| Docker on **Linux** with `network_mode: host` (e.g. a home server) | ✓ | ✓ |
+| Docker on **Linux** with host networking ([home server](#home-server-whole-network)) | ✓ | ✓ |
 | **Without Docker** (any OS) | ✓ | ✓ |
 | Docker Desktop on **macOS / Windows** | ✗ (no mDNS inside containers) | ✓ |
 
-For Linux, uncomment `network_mode: host` in [`compose.yaml`](compose.yaml) and remove the `ports` section. That also enables automatic reconnects when Wireless debugging changes its port. USB debugging works there too (uncomment `devices`), but this project is built around wireless use.
+Host networking also enables automatic reconnects when Wireless debugging changes its port.
+
+### Home server (whole network)
+
+Run it on an always-on Linux machine in the same network as the phone, and use it from any computer, tablet or phone:
+
+```sh
+echo "BCR_PASSWORD=choose-a-password" > .env
+docker compose -f compose.server.yaml up -d --build
+```
+
+Then open `https://<server-ip>:8443`. [`compose.server.yaml`](compose.server.yaml) uses host networking (QR pairing, automatic reconnects), **requires a password**, and serves **HTTPS** with a self-signed certificate created on first start. Your browser warns about it once per device; add the server's name or IP to `BCR_TLS_HOSTS` so the certificate matches, or use your own certificate with `BCR_TLS_CERT` / `BCR_TLS_KEY`.
+
+**Live view and HTTPS**: browsers only allow the fastest live-view decoder (WebCodecs) on secure pages: `https://` or `http://localhost`. On a plain `http://` address the dashboard switches to a fallback that packs the video into MP4 in the browser and plays it with Media Source Extensions: a little more delay, but it works in current Chrome, Edge, Firefox and Safari, including iPhone and iPad. To serve plain HTTP, set `BCR_TLS=` (empty) in `.env`.
 
 ### Without Docker
 
-You need Python 3.9+, [adb](https://developer.android.com/tools/releases/platform-tools), [scrcpy](https://github.com/Genymobile/scrcpy) (for its `scrcpy-server` file), and optionally ffmpeg (thumbnails) and qrencode (QR pairing). Then:
+You need Python 3.9+ (standard library only), [adb](https://developer.android.com/tools/releases/platform-tools), [scrcpy](https://github.com/Genymobile/scrcpy) (for its `scrcpy-server` file), and optionally ffmpeg (thumbnails) and qrencode (QR pairing). Then:
 
 ```sh
-python3 server.py     # then open http://localhost:8080
+python3 src/server.py     # then open http://localhost:8080
 ```
 
 `scrcpy-server` is found automatically in Homebrew and common Linux install locations. Otherwise set `SCRCPY_SERVER=/path/to/scrcpy-server` and `SCRCPY_VERSION=<its version>`.
@@ -74,17 +87,46 @@ python3 server.py     # then open http://localhost:8080
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `PCR_PHONE` | auto (asked over adb) | The phone's Wi-Fi IP, if detection fails |
-| `PCR_HOST` | `127.0.0.1` (`0.0.0.0` in Docker) | Address the dashboard listens on |
-| `PCR_PORT` | `8080` | Dashboard port |
-| `PCR_DATA` | project folder (`/data` in Docker) | Settings and thumbnail cache |
+| `BCR_PHONE` | auto (asked over adb) | The phone's Wi-Fi IP, if detection fails |
+| `BCR_HOST` | `127.0.0.1` (`0.0.0.0` in Docker) | Address the dashboard listens on |
+| `BCR_PORT` | `8080` | Dashboard port |
+| `BCR_DATA` | `data/` (`/data` in Docker) | Settings, thumbnails, login secret, certificate |
+| `BCR_PASSWORD` | none | Require a login (sessions last 30 days; changing it signs everyone out) |
+| `BCR_TLS` | off (`1` in `compose.server.yaml`) | Serve HTTPS; self-signed certificate unless the next two are set |
+| `BCR_TLS_CERT`, `BCR_TLS_KEY` | none | Your own certificate and key (PEM) |
+| `BCR_TLS_HOSTS` | none | Extra names/IPs for the self-signed certificate, comma-separated |
 
-In Docker, the dashboard is published on `127.0.0.1:8080` only, so other devices on the network can't reach it. With `network_mode: host` it listens on the host's port 8080 for the whole network. There is no login yet, so only do that on a network you trust.
+With [`compose.yaml`](compose.yaml) the dashboard is published on `127.0.0.1:8080` only, so other devices can't reach it and no password is needed. Anything reachable from the network should have `BCR_PASSWORD` set; the helper warns at startup if it isn't.
+
+## Project structure
+
+```
+src/
+  server.py                    entry point: options, start-up
+  blackmagic_cam_remote/       the helper (Python standard library only)
+    config.py                  paths, constants, runtime options
+    settings.py                settings kept between runs
+    adb.py                     finding the phone, running adb commands
+    setup.py                   setup-screen checks, QR/code pairing, connect, launch
+    webserver.py               HTTP server and routes (REST proxy, live view, events, …)
+    events.py                  live camera state from the app's event websocket
+    mirror.py                  live view stream (scrcpy-server: screen + microphone)
+    screen.py                  phone screen off/on
+    automation.py              actions when recording starts/stops
+    phone.py                   phone health, rotation, viewfinder position
+    recordings.py              clips: list, playback/download, thumbnails
+    auth.py, tls.py            optional login and HTTPS
+    util.py                    small networking helpers
+  web/
+    index.html, login.html     the dashboard and sign-in pages
+    css/app.css
+    js/                        core, camera, panels, liveview, mse (HTTP fallback), recordings, setup
+```
 
 ## How it works
 
 - **Camera API**: Blackmagic Camera's HTTPS REST API on port 4444 (`/control/api/v1`), and its event WebSocket for live state. The helper proxies both so the browser doesn't have to deal with the phone's self-signed certificate. On Android, the app expects request bodies shaped exactly like its GET responses.
-- **Live view, sound, screen off**: [scrcpy](https://github.com/Genymobile/scrcpy)'s `scrcpy-server`, started over adb. Video is decoded in the browser with WebCodecs; raw PCM audio plays through Web Audio. Screen off uses scrcpy's display-power control, so only the panel turns off and the camera keeps running.
+- **Live view, sound, screen off**: [scrcpy](https://github.com/Genymobile/scrcpy)'s `scrcpy-server`, started over adb. Video is decoded in the browser with WebCodecs (or, on plain http:// pages, repackaged as fragmented MP4 for Media Source Extensions); raw PCM audio plays through Web Audio. Screen off uses scrcpy's display-power control, so only the panel turns off and the camera keeps running.
 - **Recordings, phone health, Do Not Disturb**: adb (`dumpsys`, `cmd wifi`, `cmd notification set_dnd`, …).
 
 ## Limitations

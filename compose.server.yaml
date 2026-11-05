@@ -1,0 +1,28 @@
+# Home server / whole local network (Linux host). Usage:
+#   echo "BCR_PASSWORD=choose-a-password" > .env
+#   docker compose -f compose.server.yaml up -d --build
+# Then open https://<server-ip>:8443 on any device in your network.
+services:
+  blackmagic-cam-remote:
+    build: .
+    image: blackmagic-cam-remote
+    container_name: blackmagic-cam-remote
+    restart: unless-stopped
+    network_mode: host          # mDNS: QR pairing and automatic reconnects
+    volumes:
+      - bcr-data:/data          # adb pairing keys, settings, thumbnails, certificate
+    environment:
+      BCR_PASSWORD: ${BCR_PASSWORD:?set BCR_PASSWORD in .env}
+      BCR_PORT: ${BCR_PORT:-8443}
+      # HTTPS gives the lowest-latency live view. Leave BCR_TLS empty to serve plain http://
+      # (the live view then uses a fallback with a little more delay).
+      BCR_TLS: ${BCR_TLS-1}
+      # Names/IPs to put in the self-signed certificate, e.g. "192.168.1.10,camserver.local":
+      BCR_TLS_HOSTS: ${BCR_TLS_HOSTS:-}
+      # Or use your own certificate (mount it into the container):
+      # BCR_TLS_CERT: /certs/fullchain.pem
+      # BCR_TLS_KEY: /certs/privkey.pem
+      BCR_PHONE: ${BCR_PHONE:-}
+
+volumes:
+  bcr-data:

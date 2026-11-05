@@ -1,24 +1,20 @@
 services:
-  pixel-cam-remote:
+  blackmagic-cam-remote:
     build: .
-    image: pixel-cam-remote
-    container_name: pixel-cam-remote
+    image: blackmagic-cam-remote
+    container_name: blackmagic-cam-remote
     restart: unless-stopped
     ports:
       - "127.0.0.1:8080:8080"   # dashboard; reachable from this computer only
     volumes:
-      - pcr-data:/data          # adb pairing keys, settings, thumbnails
+      - bcr-data:/data          # adb pairing keys, settings, thumbnails
     environment:
       # Set if the phone's Wi-Fi IP can't be found automatically:
-      # PCR_PHONE: "192.168.1.20"
-      PCR_PHONE: ${PCR_PHONE:-}
+      # BCR_PHONE: "192.168.1.20"
+      BCR_PHONE: ${BCR_PHONE:-}
+      BCR_DOCKER_LOCAL: "1"     # published on 127.0.0.1 only (see "ports"), so no password is needed
 
-    # Linux only (e.g. a home server): host networking enables QR pairing and automatic
-    # reconnects (mDNS). Uncomment it and remove the "ports" section above; the dashboard
-    # then listens on port 8080 of the host. USB debugging additionally needs "devices".
-    # network_mode: host
-    # devices:
-    #   - /dev/bus/usb:/dev/bus/usb
+    # For a home server on your network, use compose.server.yaml instead.
 
 volumes:
-  pcr-data:
+  bcr-data:

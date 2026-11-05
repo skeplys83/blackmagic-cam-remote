@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Blackmagic Cam Remote</title>
+<link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1><span class="dot" id="conn"></span> <span id="phoneName">Phone</span> · Blackmagic Camera</h1>
+    <div class="stat"><b>Format</b><span id="fmt">–</span></div>
+    <div class="stat"><b>Battery</b><span id="bat">–</span></div>
+    <div class="stat"><b>Rec time left</b><span id="left">–</span></div>
+    <div class="stat"><b>Lens</b><span id="lensNow">–</span></div>
+  </header>
+
+  <div id="setupBanner" hidden><span id="setupBannerText"></span><button class="btn small" id="setupBannerBtn">Show setup</button></div>
+
+  <div id="setup" hidden>
+    <h1>Set up Blackmagic Cam Remote</h1>
+    <p class="lead">Three things need to be ready before the dashboard starts. This page re-checks automatically.</p>
+    <div class="steps">
+      <section class="step" id="step-computer"><h2>1 · Computer <span class="badge">checking…</span></h2><div class="checks"></div></section>
+      <section class="step wd" id="step-phone"><h2>2 · Wireless debugging <span class="badge">checking…</span></h2><div class="checks"></div>
+        <div class="pair" id="pairBox">
+          <p>The phone connects to this computer over Wi-Fi with Android's <b>Wireless debugging</b>. Both must be on the same network.</p>
+          <ol class="howto">
+            <li>On the phone: <i>Settings → About phone</i>, tap <i>Build number</i> 7 times (turns on Developer options).</li>
+            <li><i>Settings → System → Developer options → Wireless debugging</i>: turn it on.</li>
+            <li>Tap <i>Pair device with QR code</i> and scan the code below.</li>
+          </ol>
+          <div class="qrwrap">
+            <div id="qrBox" class="qr" hidden></div>
+            <div class="qrside">
+              <button class="btn active" id="qrBtn">Show pairing QR code</button>
+              <p id="qrStatus"></p>
+            </div>
+          </div>
+          <details>
+            <summary>Pair with a code instead</summary>
+            <p>Tap <i>Pair device with pairing code</i> on the phone and enter what it shows:</p>
+            <div class="row"><input type="text" id="pairAddr" placeholder="IP address & port, e.g. 192.168.1.20:37099"><input type="text" id="pairCode" placeholder="6-digit code" maxlength="6" style="max-width:110px;flex:none"><button class="btn" id="pairBtn">Pair</button></div>
+          </details>
+          <details>
+            <summary>Already paired: connect manually</summary>
+            <p>Enter the <i>IP address &amp; Port</i> shown at the top of the Wireless debugging screen (it changes whenever Wireless debugging restarts):</p>
+            <div class="row"><input type="text" id="connAddr" placeholder="IP address & port, e.g. 192.168.1.20:41235"><button class="btn" id="connBtn">Connect</button></div>
+          </details>
+        </div>
+      </section>
+      <section class="step" id="step-app"><h2>3 · Blackmagic Camera <span class="badge">checking…</span></h2><div class="checks"></div>
+        <div class="row" style="margin-top:12px" id="launchRow" hidden><button class="btn" id="launchBtn">Open Blackmagic Camera on the phone</button></div>
+      </section>
+    </div>
+  </div>
+
+  <div id="dash" hidden>
+  <div class="main">
+    <section>
+      <h2>Live view</h2>
+      <div class="stage" id="stage">
+        <canvas id="view" width="16" height="9"></canvas>
+        <div class="recbox"><button id="rec" title="Start / stop recording (space)" disabled><i></i></button></div>
+        <div id="stageMsg">Connecting to phone…</div>
+        <div id="takeover" hidden style="position:absolute;inset:0;display:grid;place-items:center;align-content:center;gap:12px;color:var(--dim)">
+          Live view moved to another tab or window.<button class="btn" id="takeoverBtn">Show it here</button>
+        </div>
+      </div>
+      <div class="toolbar">
+        <div class="seg" id="crop">
+          <button class="btn small active" data-v="viewport">Viewport</button>
+          <button class="btn small" data-v="full">Full screen</button>
+        </div>
+        <button class="btn small" id="sound">🔇 Sound off</button>
+        <div class="seg" id="rot" title="Rotate the live view">
+          <button class="btn small active" data-v="auto">Auto</button>
+          <button class="btn small" data-v="0">0°</button>
+          <button class="btn small" data-v="90">90°</button>
+          <button class="btn small" data-v="180">180°</button>
+          <button class="btn small" data-v="270">270°</button>
+        </div>
+        <select id="quality" title="Live view quality (24 fps max)">
+          <option value="native">Native (2424 px · 12 Mbit/s)</option>
+          <option value="medium" selected>Medium (1600 px · 6 Mbit/s)</option>
+          <option value="low">Low (1024 px · 3 Mbit/s)</option>
+          <option value="ultralow">Ultra low (640 px · 1 Mbit/s)</option>
+        </select>
+        <span class="grow" id="vstat"></span>
+      </div>
+    </section>
+
+    <div class="side">
+      <section>
+        <h2>Exposure</h2>
+        <div class="row"><label>Auto exposure</label>
+          <div class="seg" id="ae">
+            <button class="btn" data-v="Continuous">Auto</button>
+            <button class="btn" data-v="Off">Manual</button>
+          </div>
+        </div>
+        <div class="row"><label>ISO</label><select id="iso"></select></div>
+        <div class="row"><label>Shutter</label><select id="shutter"></select></div>
+        <div class="row"><label>Iris</label><output id="iris" style="text-align:left">–</output></div>
+      </section>
+
+      <section>
+        <h2>White balance</h2>
+        <div class="row"><label>Temperature</label><input type="range" id="wb" min="2500" max="10000" step="50"><output id="wbOut">–</output></div>
+        <div class="row"><label>Tint</label><input type="range" id="tint" min="-50" max="50" step="1"><output id="tintOut">–</output></div>
+        <div class="row"><label></label><button class="btn" id="wbAuto">Auto white balance (one shot)</button></div>
+      </section>
+
+      <section>
+        <h2>Focus</h2>
+        <div class="row"><label>Autofocus</label>
+          <div class="seg" id="af">
+            <button class="btn" data-v="Continuous">Continuous</button>
+            <button class="btn" data-v="off">Manual</button>
+          </div>
+        </div>
+        <div class="row"><label>Focus</label><input type="range" id="focus" min="0" max="1" step="0.001"><output id="focusOut">–</output></div>
+        <div class="row"><label></label><button class="btn" id="afOnce">Focus once</button></div>
+      </section>
+
+      <section>
+        <h2>Lens &amp; zoom</h2>
+        <div class="row"><label>Camera</label><div class="seg" id="lenses"></div></div>
+        <div class="row"><label>Zoom</label><input type="range" id="zoom" min="0" max="1" step="0.001"><output id="zoomOut">–</output></div>
+      </section>
+    </div>
+  </div>
+
+  <div class="grid2">
+    <section>
+      <h2>Recording format</h2>
+      <div class="row"><label>Resolution</label><select id="fmtRes" style="flex:1"></select></div>
+      <div class="row"><label>Frame rate</label><select id="fmtFps"></select></div>
+      <div class="row"><label>Codec</label><select id="fmtCodec"></select></div>
+      <div class="row"><label>Off-speed</label><label class="check"><input type="checkbox" id="fmtOff"> on</label>
+        <input type="number" id="fmtOffFps" min="1" step="1"> <span id="fmtOffRange" style="color:var(--dim);font-size:12px"></span></div>
+      <div class="row"><label>Audio codec</label><output id="fmtAudio" style="text-align:left">–</output></div>
+      <div class="row" id="fmtNote" style="color:var(--dim);font-size:12px" hidden>Stop recording to change the format.</div>
+    </section>
+
+    <section>
+      <h2>Monitoring overlays</h2>
+      <table class="mon">
+        <thead><tr><th></th><th>Phone screen</th><th>HDMI out</th></tr></thead>
+        <tbody id="monTable"></tbody>
+      </table>
+      <div class="row"><label>Focus assist</label>
+        <select id="faMode"><option value="Peak">Peak</option><option value="ColoredLines">Colored lines</option></select>
+        <select id="faColor"><option>Red</option><option>Green</option><option>Blue</option><option>White</option><option>Black</option></select>
+      </div>
+      <div class="row"><label>FA intensity</label><input type="range" id="faInt" min="1" max="100" step="1"><output id="faIntOut">–</output></div>
+      <div class="row"><label>Zebra level</label><select id="zebraLevel"><option>75</option><option>80</option><option>85</option><option>90</option><option>95</option><option>100</option></select> %</div>
+      <div class="row"><label>Frame guide</label><select id="guideRatio"></select></div>
+      <div class="row"><label>Grids</label><div class="seg" id="grids">
+        <button class="btn small" data-v="Thirds">Thirds</button><button class="btn small" data-v="Crosshair">Crosshair</button>
+        <button class="btn small" data-v="Dot">Dot</button><button class="btn small" data-v="Horizon">Horizon</button></div></div>
+      <div class="row"><label>Safe area</label><input type="range" id="safePct" min="50" max="100" step="1"><output id="safePctOut">–</output></div>
+    </section>
+
+    <section>
+      <h2>Presets</h2>
+      <div class="presets" id="presetList"><div class="empty">No presets yet.</div></div>
+      <div class="row"><input type="text" id="presetName" placeholder="New preset name" maxlength="60"><button class="btn" id="presetSave">Save current settings</button></div>
+    </section>
+
+    <section>
+      <h2>Phone</h2>
+      <div class="stats">
+        <div class="stat"><b>Temperature</b><span id="phTemp">–</span></div>
+        <div class="stat"><b>Thermal state</b><span id="phThermal">–</span></div>
+        <div class="stat"><b>Wi-Fi</b><span id="phWifi">–</span></div>
+        <div class="stat"><b>Free storage</b><span id="phStorage">–</span></div>
+        <div class="stat"><b>Battery</b><span id="phBattery">–</span></div>
+        <div class="stat"><b>Screen · DND</b><span id="phScreen">–</span></div>
+      </div>
+      <div class="row"><label class="check"><input type="checkbox" id="autoScreen"> Phone screen off while recording</label></div>
+      <div class="row"><label class="check"><input type="checkbox" id="autoDnd"> Do Not Disturb while recording</label></div>
+      <div class="row"><button class="btn" id="screenOff">Screen off now</button><button class="btn" id="screenOn">Screen on</button></div>
+      <p class="note" style="margin-top:4px">Screen off turns only the display panel off; the camera keeps running and touches still reach the app. A back gesture on the phone (swipe in from a screen edge) turns it on again.</p>
+    </section>
+  </div>
+
+  <section style="margin-top:16px">
+    <h2>Recordings <span class="grow"></span><button class="btn small" id="clipsRefresh">Refresh</button></h2>
+    <div id="clips"><div class="empty">Loading…</div></div>
+  </section>
+
+  <p class="note">Live view mirrors the phone's screen (overlays included) and sound comes from the phone's microphone; both run over adb, so keep Wireless debugging on.
+    Setting ISO or shutter switches exposure to Manual; moving the focus slider switches autofocus off; moving white balance locks it (use the phone to return WB to auto). Space bar = record.</p>
+  </div>
+</div>
+
+<dialog id="player">
+  <video id="playerVideo" controls playsinline></video>
+  <div class="bar"><span id="playerName"></span><a class="btn small" id="playerDl">Download</a><button class="btn small" id="playerClose">Close</button></div>
+</dialog>
+<div id="toast"></div>
+
+<script src="/js/core.js"></script>
+<script src="/js/camera.js"></script>
+<script src="/js/panels.js"></script>
+<script src="/js/liveview.js"></script>
+<script src="/js/mse.js"></script>
+<script src="/js/recordings.js"></script>
+<script src="/js/setup.js"></script>
+</body>
+</html>

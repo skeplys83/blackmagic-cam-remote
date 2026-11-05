@@ -1,5 +1,5 @@
 #!/bin/sh
-# Start Pixel Cam Remote in Docker and open the dashboard.
+# Start Blackmagic Cam Remote in Docker and open the dashboard.
 set -e
 cd "$(dirname "$0")"
 URL=http://localhost:8080
