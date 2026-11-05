@@ -60,13 +60,15 @@ function drawFrame(src) {
   stageMsg('');
 }
 
-// The live-view tile (heading, picture, toolbar, record button) never gets taller than the window:
-// the picture's maximum height is the window height minus everything else in the tile.
+// The whole live-view tile (heading, picture, toolbar, record button) fits in the window from where it starts:
+// the picture's maximum height is the window height minus the tile's distance from the top of the page,
+// minus everything else in the tile, minus a bottom margin.
 function fitLiveTile() {
   const tile = $('liveTile'), stage = $('stage');
   if (!tile.offsetParent) return; // dashboard hidden
+  const top = tile.getBoundingClientRect().top + window.scrollY;
   const chrome = tile.offsetHeight - stage.offsetHeight;
-  stage.style.setProperty('--maxh', Math.max(160, window.innerHeight - chrome - 16) + 'px');
+  stage.style.setProperty('--maxh', Math.max(160, window.innerHeight - top - chrome - 16) + 'px');
 }
 window.addEventListener('resize', fitLiveTile);
 new ResizeObserver(fitLiveTile).observe(document.querySelector('#liveTile .toolbar')); // the toolbar can wrap
