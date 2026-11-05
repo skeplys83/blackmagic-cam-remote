@@ -9,6 +9,7 @@ const sameRes = (a, b) => a && b && a.width === b.width && a.height === b.height
 
 function formats() { return P['/system/supportedFormats']?.supportedFormats || []; }
 
+let fmtBusy = null; // the format change in flight (see putFormat)
 function renderFormat() {
   const f = P['/system/format'], list = formats(); if (!f || !list.length) return;
   const idx = list.findIndex(x => sameRes(x.recordResolution, f.recordResolution) && sameRes(x.sensorResolution, f.sensorResolution));
@@ -20,25 +21,59 @@ function renderFormat() {
   }
   if (document.activeElement !== res) res.value = idx;
   const cur = list[idx] || list[0];
-  const fps = $('fmtFps'); fps.innerHTML = cur.frameRates.map(r => `<option>${r}</option>`).join(''); fps.value = f.frameRate;
-  const codecs = cur.codecs.length ? cur.codecs : codecList;
-  const cs = $('fmtCodec'); cs.innerHTML = (codecs.length ? codecs : [f.codec]).map(c => `<option value="${c}">${codecLabel(c)}</option>`).join(''); cs.value = f.codec;
+  // Rebuild the lists only when they change, and leave a select alone while it is open or a change is pending:
+  // events arrive several times a second and would otherwise close the dropdown and reset the choice.
+  const fps = $('fmtFps'), cs = $('fmtCodec'), codecs = cur.codecs.length ? cur.codecs : codecList;
+  fillSelect(fps, cur.frameRates.map(String), r => r);
+  fillSelect(cs, codecs.length ? codecs : [f.codec], codecLabel);
+  if (!fmtBusy && document.activeElement !== fps) fps.value = String(f.frameRate);
+  if (!fmtBusy && document.activeElement !== cs) cs.value = f.codec;
   $('fmtOff').checked = !!f.offSpeedEnabled;
   const off = $('fmtOffFps'); off.min = f.minOffSpeedFrameRate; off.max = f.maxOffSpeedFrameRate;
   if (document.activeElement !== off) off.value = f.offSpeedFrameRate;
   off.disabled = !f.offSpeedEnabled;
   $('fmtOffRange').textContent = `${f.minOffSpeedFrameRate}–${f.maxOffSpeedFrameRate} fps`;
   const a = P['/system/audioCodec']; $('fmtAudio').textContent = a ? a.codec : '–';
-  for (const id of ['fmtRes', 'fmtFps', 'fmtCodec', 'fmtOff']) $(id).disabled = state.recording;
-  if (state.recording) off.disabled = true;
+  for (const id of ['fmtRes', 'fmtFps', 'fmtCodec', 'fmtOff']) $(id).disabled = state.recording || !!fmtBusy;
+  if (state.recording || fmtBusy) off.disabled = true;
   $('fmtNote').hidden = !state.recording;
 }
 
-function putFormat(changes) {
-  const f = P['/system/format']; if (!f) return;
-  const body = { codec: f.codec, frameRate: f.frameRate, maxOffSpeedFrameRate: f.maxOffSpeedFrameRate, minOffSpeedFrameRate: f.minOffSpeedFrameRate,
-    offSpeedEnabled: f.offSpeedEnabled, offSpeedFrameRate: f.offSpeedFrameRate, recordResolution: f.recordResolution, sensorResolution: f.sensorResolution, ...changes };
-  send('system/format', 'PUT', body, 'Recording format').then(() => refresh(['/system', '/system/format']));
+// Format changes are applied one field at a time, each confirmed before the next. The app mishandles PUTs that
+// change several things, and while off-speed is on it writes `frameRate` into the off-speed rate instead (the
+// project rate never changes). So: off-speed off → frame rate / codec → off-speed back on with its rate.
+// The controls stay locked meanwhile; a second change during the camera's reconfiguration gets misapplied.
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+async function formatStep(ch) {
+  const ok = () => Object.entries(ch).every(([k, v]) => String((P['/system/format'] || {})[k]) === String(v));
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const f = P['/system/format'];
+    await api('system/format', 'PUT', { codec: f.codec, frameRate: f.frameRate, maxOffSpeedFrameRate: f.maxOffSpeedFrameRate,
+      minOffSpeedFrameRate: f.minOffSpeedFrameRate, offSpeedEnabled: f.offSpeedEnabled, offSpeedFrameRate: f.offSpeedFrameRate,
+      recordResolution: f.recordResolution, sensorResolution: f.sensorResolution, ...ch });
+    for (let t = 0; t < 4000 && !ok(); t += 250) {
+      await sleep(250);
+      if (t % 1000 === 750) await refresh(['/system/format']); // in case the event got lost
+    }
+    if (ok()) return;
+  }
+  throw new Error('the camera did not take the change');
+}
+async function putFormat(changes) {
+  const f = P['/system/format']; if (!f || fmtBusy) return;
+  const want = { ...f, ...changes };
+  const rateChange = String(want.frameRate) !== String(f.frameRate) || want.codec !== f.codec;
+  fmtBusy = changes; renderFormat();
+  try {
+    if (rateChange && f.offSpeedEnabled) await formatStep({ offSpeedEnabled: false });
+    if (rateChange) await formatStep({ frameRate: String(want.frameRate), codec: want.codec });
+    const now = P['/system/format'];
+    if (want.offSpeedEnabled && !now.offSpeedEnabled) await formatStep({ offSpeedEnabled: true, offSpeedFrameRate: want.offSpeedFrameRate });
+    else if (want.offSpeedEnabled && now.offSpeedFrameRate !== want.offSpeedFrameRate) await formatStep({ offSpeedFrameRate: want.offSpeedFrameRate });
+    else if (!want.offSpeedEnabled && now.offSpeedEnabled) await formatStep({ offSpeedEnabled: false });
+  } catch (e) { toast('Recording format: ' + e.message); }
+  await refresh(['/system', '/system/format']);
+  fmtBusy = null; renderFormat();
 }
 // Resolution changes go through the helper (the app's API reverts them otherwise; see recformat.py).
 $('fmtRes').onchange = async (e) => {
@@ -56,8 +91,8 @@ $('fmtRes').onchange = async (e) => {
   } catch (err) { toast('Resolution: ' + err.message); refresh(['/system/format']); }
   sel.disabled = false; state.resChanging = false;
 };
-$('fmtFps').onchange = (e) => putFormat({ frameRate: e.target.value });
-$('fmtCodec').onchange = (e) => putFormat({ codec: e.target.value });
+$('fmtFps').onchange = (e) => { putFormat({ frameRate: e.target.value }); e.target.blur(); };
+$('fmtCodec').onchange = (e) => { putFormat({ codec: e.target.value }); e.target.blur(); };
 $('fmtOff').onchange = (e) => putFormat({ offSpeedEnabled: e.target.checked });
 $('fmtOffFps').onchange = (e) => {
   const f = P['/system/format']; const v = Math.round(+e.target.value);

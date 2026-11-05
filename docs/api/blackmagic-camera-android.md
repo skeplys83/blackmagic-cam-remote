@@ -36,7 +36,7 @@ but the Android implementation differs from them in many places. **Check here fi
 | `PUT /video/whiteBalance` | `{"whiteBalance": K, "tint": n}`; locks WB (no way back to continuous auto via API) |
 | `PUT /video/whiteBalance/doAuto` | One-shot auto WB, no body |
 | `/video/gain`, `/system/dynamicRange`, `/monitoring/*/brightness` | 501 |
-| `PUT /system/format` | GET shape. **Frame rate/codec/off-speed stick; resolution reverts after ~1 s** (the app rebuilds from its own resolution + Open Gate settings). Use a preset instead (below) |
+| `PUT /system/format` | GET shape. **Change one thing per PUT** and wait for it (~0.3–1 s); PUTs changing several fields get misapplied. **While off-speed is on, `frameRate` is written into the off-speed rate** and the project rate can't change: turn off-speed off, set the frame rate, turn it back on with `offSpeedFrameRate`. Some off-speed rates are refused (400, e.g. 96 at 48 fps). **Resolution reverts after ~1 s** (the app rebuilds from its own resolution + Open Gate settings); use a preset instead (below) |
 | `PUT /system/videoFormat` | Same revert for resolution |
 | `/system/audioCodec` | Read only (AAC) |
 | `GET/PUT/DELETE /presets/{name}.bmcpreset` | PUT saves the current state; GET returns JSON (`appsettings` incl. `resolutionSize` "WxH", `isOpenGate`) |
