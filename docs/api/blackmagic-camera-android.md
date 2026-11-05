@@ -51,6 +51,7 @@ but the Android implementation differs from them in many places. **Check here fi
 | `/audio/channel/N/{padding,lowCutFilter,phantomPower}` | 400 (no such hardware) |
 | `PUT /transports/0/proxyRecording` | `{"enabled": bool}` |
 | `/slates/...` | Readable (reel, scene, take, …); writes via `/slates/{target}/{category}/{property}`, untested |
+| `GET /clips` | Per clip: `videoFormat.name` (file name without `.mp4`), `frameCount`, `videoFormat.frameRate`, `durationTimecode`, `filePath` (a `content://media/…` URI). The list lags behind deletions |
 | `/camera/motionSensor/euler` | `roll ≈ atan2(gy, gx)` in radians |
 
 ## adb facts used by the helper
@@ -59,6 +60,7 @@ but the Android implementation differs from them in many places. **Check here fi
   `logcat -b events` tags `wm_on_top_resumed_gained_called` / `_lost_called`.
 - Viewfinder: largest `android.view.SurfaceView` in `uiautomator dump` (~2.5 s; the camera preview never idles).
 - Do Not Disturb: `cmd notification set_dnd priority|off`; state `settings get global zen_mode`.
-- Clips: `/sdcard/DCIM/Blackmagic Camera`.
+- Clips: `/sdcard/DCIM/Blackmagic Camera`. Delete through the media store so the gallery stays in sync:
+  `content delete --uri content://media/external/file/<id>` (no output; check the file is gone).
 - Pairing name on the phone is `"<LOGNAME>@<HOSTNAME>"` of the adb server process (not the key comment); Android
   cuts it at the first space.

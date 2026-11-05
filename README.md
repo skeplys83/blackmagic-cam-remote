@@ -81,7 +81,8 @@ Details: [docs/architecture/overview.md](docs/architecture/overview.md).
   frame rate, codec, off-speed, proxy files), focus (continuous, manual, focus once).
 - **Settings tiles**: exposure (auto/manual, ISO, shutter as speed or angle, false color / zebra), white balance,
   audio (input and gain per channel), phone (temperature, Wi-Fi, storage, battery; screen off and Do Not Disturb
-  while recording), monitoring overlays for the phone screen and HDMI out, presets, recordings.
+  while recording), monitoring overlays for the phone screen and HDMI out, presets, recordings (thumbnails,
+  duration, playback, download, delete).
 - **Touch friendly**: every control is at least 44 px, so it works well on an iPad.
 
 ## Other

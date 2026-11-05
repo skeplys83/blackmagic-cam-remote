@@ -36,7 +36,7 @@
 | `screen.py` | Display power via scrcpy control channel; back-gesture watcher (`getevent`) |
 | `automation.py` | On record start/stop: screen off, Do Not Disturb |
 | `phone.py` | Phone health (battery, temperature, Wi-Fi, storage), rotation, viewfinder position (UI dump) |
-| `recordings.py` | Clip list, byte-range reads, ffmpeg thumbnails (cached in `data/cache`) |
+| `recordings.py` | Clip list (folder + durations from the app's `/clips`), byte-range reads, ffmpeg thumbnails (cached in `data/cache`), delete via the media store |
 | `recformat.py` | Resolution changes via a temporary preset (the API alone reverts them) |
 | `auth.py`, `tls.py` | Optional password login (signed cookie), optional HTTPS (self-signed or own cert) |
 

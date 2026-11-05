@@ -16,7 +16,7 @@ from . import auth, config, events, readiness
 from .adb import phone_host
 from .mirror import PRESETS, T_REPLACED, Mirror, take_over
 from .phone import orientation, phone_status, viewport
-from .recordings import clip_size, list_clips, read_range, thumbnail
+from .recordings import clip_size, delete_clip, list_clips, read_range, thumbnail
 from .recformat import set_resolution
 from .screen import screen
 from .settings import settings
@@ -277,6 +277,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         length = int(self.headers.get("Content-Length") or 0)
         try:
             body = json.loads(self.rfile.read(length) or b"{}") if length else {}
+            if u.path == "/clips/file" and self.command == "DELETE":
+                return self._json(delete_clip(urllib.parse.parse_qs(u.query)["name"][0]))
             if u.path == "/format/resolution" and self.command == "POST":
                 return self._json(set_resolution(body["width"], body["height"], body.get("openGate", False)))
             if u.path == "/screen" and self.command == "POST":
