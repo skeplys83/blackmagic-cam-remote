@@ -204,7 +204,10 @@ $('screenOn').onclick = () => setScreen(true);
 
 function renderQuick() {
   const ois = P['/lens/opticalImageStabilization'];
-  if (ois) { $('ois').checked = !!ois.enabled; $('ois').disabled = ois.controlAvailable === false; }
+  if (ois) {
+    const unavailable = ois.controlAvailable === false; // e.g. the ultra-wide lens has no OIS
+    $('ois').checked = !!ois.enabled; $('ois').disabled = unavailable; $('oisHint').hidden = !unavailable;
+  }
   const proxy = P['/transports/0/proxyRecording'];
   if (proxy) { $('proxy').checked = !!proxy.enabled; $('proxy').disabled = state.recording; }
   for (const b of $('exposureTools').querySelectorAll('button')) b.classList.toggle('active', !!P[`/monitoring/LCD/${b.dataset.k}`]?.enabled);

@@ -264,3 +264,6 @@ input[type=range]::-moz-range-thumb { width: 22px; height: 22px; border-width: 3
 .clipdel.armed { background: var(--rec); border-color: var(--rec); color: #fff; }
 .clipdel:disabled { opacity: .6; cursor: default; }
 .card .thumb::after { pointer-events: none; }
+
+.hint { color: var(--dim); font-size: 12px; margin-left: 4px; }
+label.check:has(input:disabled) { color: var(--dim); cursor: default; }

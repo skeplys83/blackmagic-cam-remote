@@ -28,7 +28,7 @@ but the Android implementation differs from them in many places. **Check here fi
 | `PUT /lens/focus` | Send **only** `{"normalized": x}`. If `focusDistance` is present the app uses it and ignores `normalized` (opposite of the spec) |
 | `PUT /lens/zoom` | Only `{"normalized": x}` works (`focalLength` → 400) |
 | `PUT /lens/cameras/active` | `{"id": "2"}` |
-| `PUT /lens/opticalImageStabilization` | `{"enabled": bool}` |
+| `PUT /lens/opticalImageStabilization` | `{"enabled": bool}`; `controlAvailable` is false on lenses without OIS (e.g. the 0.6x ultra-wide). The app's own stabilization mode (Standard/Off) is neither in the API nor in presets |
 | `PUT /video/iso` | Value must be in `/video/supportedISOs`; switches auto exposure off |
 | `PUT /video/shutter` | `{"shutterSpeed": n}` or `{"shutterAngle": hundredths}` (18000 = 180°), value from `/video/supportedShutters`; switches auto exposure off |
 | `PUT /video/shutter/measurement` | `{"measurement": "ShutterSpeed"|"ShutterAngle"}`; angle mode fills `shutterAngles` |
