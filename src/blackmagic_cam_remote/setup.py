@@ -16,8 +16,16 @@ from .adb import adb, mdns_services, phone_host, scrcpy_server
 from .settings import settings
 
 
-def _check(ok, title, detail="", fix=None, optional=False):
-    return {"ok": bool(ok), "title": title, "detail": detail, "fix": fix, "optional": optional}
+def _check(ok, title, detail="", fix=None, optional=False, id=None):
+    return {"ok": bool(ok), "title": title, "detail": detail, "fix": fix, "optional": optional, "id": id}
+
+
+def foreground_app():
+    """Package of the app currently in front on the phone (its top resumed activity), or None."""
+    out = adb("shell", "dumpsys activity activities | grep -E 'topResumedActivity=|ResumedActivity: ' | head -3",
+              timeout=10).stdout.decode(errors="replace")
+    m = re.search(r"ActivityRecord\{\S+ u\d+ ([\w.]+)/", out)
+    return m.group(1) if m else None
 
 def setup_status():
     """Three groups of checks; the dashboard only starts when every required one passes."""
@@ -69,9 +77,15 @@ def setup_status():
         app.append(_check(installed, "Blackmagic Camera installed", pkg.split("=", 1)[-1] if installed else "not installed",
                           None if installed else "Install Blackmagic Camera from Google Play."))
         if installed:
-            running = bool(adb("shell", f"pidof {config.APP_PACKAGE}", timeout=10).stdout.strip())
-            app.append(_check(running, "Blackmagic Camera open", "" if running else "not running",
-                              None if running else "Open Blackmagic Camera on the phone (or use the button below).",))
+            front = foreground_app() == config.APP_PACKAGE
+            if front:
+                app.append(_check(True, "Blackmagic Camera open", "in front on the phone", id="app-front"))
+            else:
+                running = bool(adb("shell", f"pidof {config.APP_PACKAGE}", timeout=10).stdout.strip())
+                app.append(_check(False, "Blackmagic Camera open",
+                                  "in the background" if running else "not running",
+                                  "Bring Blackmagic Camera to the front on the phone (or use the button below). "
+                                  "The dashboard only runs while the app is open in front.", id="app-front"))
             uid = (re.search(r"uid:(\d+)", adb("shell", f"pm list packages -U {config.APP_PACKAGE}", timeout=10).stdout.decode()) or [None, None])[1]
             owner = None
             tcp = adb("shell", "cat /proc/net/tcp /proc/net/tcp6", timeout=10).stdout.decode(errors="replace")

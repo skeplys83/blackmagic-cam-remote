@@ -21,7 +21,7 @@ function renderSetup(st) {
   if (dev?.model) $('phoneName').textContent = dev.model;
   const phoneOk = st.groups.phone.every(c => c.ok);
   $('pairBox').hidden = phoneOk;
-  $('launchRow').hidden = !st.groups.app.some(c => c.title === 'Blackmagic Camera open' && !c.ok);
+  $('launchRow').hidden = !st.groups.app.some(c => c.id === 'app-front' && !c.ok);
 }
 
 async function checkSetup() {
@@ -32,10 +32,13 @@ async function checkSetup() {
   if (st.ready) {
     notReadyCount = 0;
     if (!dashboardOn) startDashboard();
-  } else if (++notReadyCount >= (dashboardOn ? 2 : 1)) { // while in use, one failed check may be a hiccup; two in a row stop it
-    stopDashboard();
+  } else {
+    // The app leaving the front (e.g. swiping home) stops everything at once; for other failures while in use,
+    // one failed check may be a hiccup, so it takes two in a row.
+    const appGone = Object.values(st.groups).flat().some(c => c.id === 'app-front' && !c.ok);
+    if (appGone || ++notReadyCount >= (dashboardOn ? 2 : 1)) stopDashboard();
   }
-  setTimeout(checkSetup, dashboardOn ? 5000 : 2000);
+  setTimeout(checkSetup, dashboardOn ? 3000 : 2000);
 }
 
 async function setupAction(action, body, btn) {
