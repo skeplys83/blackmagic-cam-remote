@@ -95,6 +95,7 @@ python3 src/server.py     # then open http://localhost:8080
 | `BCR_TLS` | off (`1` in `compose.server.yaml`) | Serve HTTPS; self-signed certificate unless the next two are set |
 | `BCR_TLS_CERT`, `BCR_TLS_KEY` | none | Your own certificate and key (PEM) |
 | `BCR_TLS_HOSTS` | none | Extra names/IPs for the self-signed certificate, comma-separated |
+| `BCR_ADB_NAME` | `Blackmagic Cam Remote` in Docker; unset otherwise | This computer's name in the phone's *Paired devices* list (applies to new pairings) |
 
 With [`compose.yaml`](compose.yaml) the dashboard is published on `127.0.0.1:8080` only, so other devices can't reach it and no password is needed. Anything reachable from the network should have `BCR_PASSWORD` set; the helper warns at startup if it isn't.
 

@@ -18,6 +18,7 @@ COPY src/ ./
 # /data keeps adb pairing keys (HOME/.android), settings, thumbnails, login secret and certificate.
 ENV HOME=/data \
     BCR_DATA=/data \
+    BCR_ADB_NAME="Blackmagic Cam Remote" \
     BCR_HOST=0.0.0.0 \
     BCR_PORT=8080 \
     SCRCPY_SERVER=/usr/local/share/scrcpy-server \
