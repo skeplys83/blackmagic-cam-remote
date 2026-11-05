@@ -13,8 +13,9 @@ services:
       # PCR_PHONE: "192.168.1.20"
       PCR_PHONE: ${PCR_PHONE:-}
 
-    # Linux only: USB debugging and automatic wireless discovery. Uncomment both,
-    # and remove the "ports" section above (host networking publishes 8080 directly).
+    # Linux only (e.g. a home server): host networking enables QR pairing and automatic
+    # reconnects (mDNS). Uncomment it and remove the "ports" section above; the dashboard
+    # then listens on port 8080 of the host. USB debugging additionally needs "devices".
     # network_mode: host
     # devices:
     #   - /dev/bus/usb:/dev/bus/usb

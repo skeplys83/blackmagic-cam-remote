@@ -35,11 +35,12 @@ On Windows: `docker compose up -d --build`, then open <http://localhost:8080>.
 The dashboard opens on a **setup screen** with three checks. It re-checks every couple of seconds and starts the dashboard once all of them pass:
 
 1. **Computer**: Python, adb, scrcpy-server and ffmpeg. All bundled in the Docker image, so this is green automatically.
-2. **Phone connection**
+2. **Wireless debugging**: the phone connects over Wi-Fi, so it can be anywhere on your network (on a rig, a tripod, a gimbal).
    - On the phone, turn on Developer options (Settings → About phone → tap *Build number* 7 times).
    - Open Settings → System → Developer options → **Wireless debugging** and turn it on.
-   - First time only: tap *Pair device with pairing code* and enter the shown *IP address & port* and *code* in the setup screen's **Pair** fields.
-   - Then enter the *IP address & port* shown at the top of the Wireless debugging screen into **Connect**. This port changes whenever Wireless debugging restarts; the last one used is tried automatically.
+   - **Pair with QR code**: click *Show pairing QR code* on the setup screen, then on the phone tap *Pair device with QR code* and scan it. Pairing and connecting happen automatically.
+   - **Or pair with a code**: tap *Pair device with pairing code* and enter the shown *IP address & port* and *code* on the setup screen.
+   - If a connection is needed manually, enter the *IP address & port* shown at the top of the Wireless debugging screen into **Connect**. This port changes whenever Wireless debugging restarts; the last one used is tried automatically.
 3. **Blackmagic Camera**
    - Install the app and open it (the setup screen can open it for you).
    - In the app: Settings → **Network Access** → turn on **Enable HTTP Server**.
@@ -47,19 +48,27 @@ The dashboard opens on a **setup screen** with three checks. It re-checks every 
 
 Pairing keys, settings and thumbnails live in the `pcr-data` Docker volume, so you only pair once.
 
-### USB debugging
+### QR pairing and where it works
 
-Docker Desktop (macOS and Windows) can't pass USB devices or local-network discovery into containers, so use Wireless debugging there. On **Linux**, uncomment `network_mode: host` and the `devices` section in [`compose.yaml`](compose.yaml) to use USB debugging and automatic discovery.
+QR pairing needs local-network discovery (mDNS) to find the phone after it scans the code:
+
+| Where the dashboard runs | QR pairing | Code pairing |
+|---|---|---|
+| Docker on **Linux** with `network_mode: host` (e.g. a home server) | ✓ | ✓ |
+| **Without Docker** (any OS) | ✓ | ✓ |
+| Docker Desktop on **macOS / Windows** | ✗ (no mDNS inside containers) | ✓ |
+
+For Linux, uncomment `network_mode: host` in [`compose.yaml`](compose.yaml) and remove the `ports` section. That also enables automatic reconnects when Wireless debugging changes its port. USB debugging works there too (uncomment `devices`), but this project is built around wireless use.
 
 ### Without Docker
 
-You need Python 3.9+, [adb](https://developer.android.com/tools/releases/platform-tools), [scrcpy](https://github.com/Genymobile/scrcpy) (for its `scrcpy-server` file) and optionally ffmpeg. Then:
+You need Python 3.9+, [adb](https://developer.android.com/tools/releases/platform-tools), [scrcpy](https://github.com/Genymobile/scrcpy) (for its `scrcpy-server` file), and optionally ffmpeg (thumbnails) and qrencode (QR pairing). Then:
 
 ```sh
 python3 server.py     # then open http://localhost:8080
 ```
 
-`scrcpy-server` is found automatically in Homebrew and common Linux install locations. Otherwise set `SCRCPY_SERVER=/path/to/scrcpy-server` and `SCRCPY_VERSION=<its version>`. Running without Docker also gives USB debugging and mDNS reconnects on macOS.
+`scrcpy-server` is found automatically in Homebrew and common Linux install locations. Otherwise set `SCRCPY_SERVER=/path/to/scrcpy-server` and `SCRCPY_VERSION=<its version>`.
 
 ## Configuration
 
@@ -70,7 +79,7 @@ python3 server.py     # then open http://localhost:8080
 | `PCR_PORT` | `8080` | Dashboard port |
 | `PCR_DATA` | project folder (`/data` in Docker) | Settings and thumbnail cache |
 
-In Docker, the dashboard is published on `127.0.0.1:8080` only, so other devices on the network can't reach it.
+In Docker, the dashboard is published on `127.0.0.1:8080` only, so other devices on the network can't reach it. With `network_mode: host` it listens on the host's port 8080 for the whole network. There is no login yet, so only do that on a network you trust.
 
 ## How it works
 
@@ -89,7 +98,8 @@ In Docker, the dashboard is published on `127.0.0.1:8080` only, so other devices
 ## Troubleshooting
 
 - **"HTTP server on" fails although it's enabled**: another app may hold port 4444. The check names it; close or uninstall it, then toggle *Enable HTTP Server* off and on.
-- **Phone disconnects after a while**: Wireless debugging got a new port (after a reboot or toggle). Enter the new *IP address & port* in **Connect**.
+- **Phone disconnects after a while**: Wireless debugging got a new port (after a reboot or toggle). With mDNS it reconnects by itself; otherwise enter the new *IP address & port* in **Connect**.
+- **QR code scanned, but nothing happens**: this setup can't see mDNS (Docker Desktop on macOS/Windows). Pair with a code instead.
 - **"Reachable over the network" fails**: the phone and computer are on different networks, or the Wi-Fi isolates clients (common on guest networks).
 - **Live view says another tab took it**: only one live view runs at a time; click *Show it here*.
 

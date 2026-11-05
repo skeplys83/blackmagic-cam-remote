@@ -4,7 +4,7 @@ ARG SCRCPY_VERSION=5.0.1
 ARG SCRCPY_SHA256=764eb6f79811d5211fe9df341120882ba9994c7a61b897d7bf3fb662e53bc536
 
 RUN apt-get update \
- && apt-get install -y --no-install-recommends python3 adb ffmpeg ca-certificates curl \
+ && apt-get install -y --no-install-recommends python3 adb ffmpeg qrencode ca-certificates curl \
  && rm -rf /var/lib/apt/lists/*
 
 # scrcpy-server runs on the phone (over adb) for the live view, sound and screen-off.

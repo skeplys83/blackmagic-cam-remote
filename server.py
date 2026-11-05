@@ -36,6 +36,8 @@ import platform
 import queue
 import random
 import re
+import secrets
+import string
 import shlex
 import shutil
 import socket
@@ -635,13 +637,14 @@ def setup_status():
     if ready_devs:
         d = ready_devs[0]
         wireless = ":" in d["serial"] or "_adb-tls-connect" in d["serial"]
-        phone.append(_check(True, "Phone connected", f"{d['model'] or d['serial']} via {'Wi-Fi (wireless debugging)' if wireless else 'USB'}"))
+        phone.append(_check(True, "Connected over wireless debugging" if wireless else "Connected (over USB)",
+                            f"{d['model'] or d['serial']} · {d['serial']}" + ("" if wireless else " · wireless debugging is recommended")))
     elif any(d["state"] == "unauthorized" for d in devices):
-        phone.append(_check(False, "Phone connected", "the phone hasn't allowed this computer yet",
-                            "Unlock the phone and tap Allow on the \"Allow USB debugging?\" prompt."))
+        phone.append(_check(False, "Connected over wireless debugging", "the phone hasn't allowed this computer yet",
+                            "Unlock the phone and confirm the debugging prompt, or pair again below."))
     else:
-        phone.append(_check(False, "Phone connected", "no phone found",
-                            "Turn on Developer options, then Wireless debugging (or USB debugging), and pair below."))
+        phone.append(_check(False, "Connected over wireless debugging", "no phone connected",
+                            "Turn on Wireless debugging on the phone and pair it below (QR code or pairing code)."))
 
     if ready_devs:
         try:
@@ -692,7 +695,75 @@ def setup_status():
     return {"ready": ready, "groups": groups, "devices": devices}
 
 
+# QR pairing: the phone scans WIFI:T:ADB;S:<name>;P:<password>;; then advertises _adb-tls-pairing._tcp
+# under <name> via mDNS; we find it, run `adb pair`, then connect to its _adb-tls-connect service.
+_qr = {"name": None, "password": None, "state": "idle", "message": "", "started": 0}
+_qr_lock = threading.Lock()
+
+
+def mdns_services():
+    out = subprocess.run(["adb", "mdns", "services"], capture_output=True, text=True, timeout=10).stdout
+    return [line.split() for line in out.splitlines() if "._tcp" in line and len(line.split()) >= 3]
+
+
+def qr_start():
+    if not shutil.which("qrencode"):
+        raise RuntimeError("qrencode is not installed; pair with a code instead")
+    name = "pcr-" + secrets.token_hex(3)
+    password = "".join(secrets.choice(string.ascii_letters + string.digits) for _ in range(12))
+    payload = f"WIFI:T:ADB;S:{name};P:{password};;"
+    svg = subprocess.run(["qrencode", "-t", "SVG", "-m", "2", "-o", "-", payload],
+                         capture_output=True, text=True, timeout=10).stdout
+    with _qr_lock:
+        _qr.update(name=name, password=password, state="waiting", message="Scan the code with the phone", started=time.time())
+    threading.Thread(target=_qr_watch, args=(name, password), daemon=True).start()
+    return {"svg": svg, "name": name}
+
+
+def _qr_watch(name, password):
+    def set_state(state, message):
+        with _qr_lock:
+            if _qr["name"] == name:
+                _qr.update(state=state, message=message)
+    seen_any = False
+    deadline = time.time() + 180
+    while time.time() < deadline:
+        with _qr_lock:
+            if _qr["name"] != name:
+                return  # replaced by a newer code
+        services = mdns_services()
+        seen_any = seen_any or bool(services)
+        pairing = [s for s in services if s[0] == name and s[1] == "_adb-tls-pairing._tcp"]
+        if pairing:
+            addr = pairing[0][2]
+            set_state("pairing", f"Pairing with {addr}…")
+            out = subprocess.run(["adb", "pair", addr, password], capture_output=True, text=True, timeout=30)
+            msg = (out.stdout + out.stderr).strip()
+            if "Successfully paired" not in msg:
+                return set_state("failed", msg or "pairing failed")
+            ip = addr.rsplit(":", 1)[0]
+            set_state("connecting", "Paired. Connecting…")
+            for _ in range(20):  # the phone advertises its connect port right after pairing
+                for s in mdns_services():
+                    if s[1] == "_adb-tls-connect._tcp" and s[2].startswith(ip + ":"):
+                        subprocess.run(["adb", "connect", s[2]], capture_output=True, timeout=15)
+                        automation.update({"lastAddress": s[2]})
+                        return set_state("done", f"Paired and connected to {s[2]}")
+                time.sleep(1)
+            return set_state("done", "Paired. Enter the IP address & port below to connect.")
+        if not seen_any and time.time() - _qr["started"] > 25:
+            set_state("waiting", "Nothing found on the network yet. If the phone already shows \"Pairing\", this setup can't see "
+                                 "local-network discovery (Docker Desktop on macOS/Windows): pair with a code instead.")
+        time.sleep(1)
+    set_state("timeout", "The code expired. Show a new one to try again.")
+
+
 def setup_action(action, body):
+    if action == "qr":
+        return qr_start()
+    if action == "qr-status":
+        with _qr_lock:
+            return {"state": _qr["state"], "message": _qr["message"], "name": _qr["name"]}
     if action == "pair":
         addr, code = str(body.get("address", "")).strip(), str(body.get("code", "")).strip()
         if not re.fullmatch(r"[\w.\-]+:\d+", addr) or not re.fullmatch(r"\d{6}", code):
