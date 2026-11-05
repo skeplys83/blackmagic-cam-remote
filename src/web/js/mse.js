@@ -102,6 +102,10 @@ const mse = (() => {
       video.play().catch(() => {});
       drawLoop();
     },
+    stop() {
+      if (video) { video.removeAttribute('src'); video.load(); }
+      video = null; ms = null; sb = null; queue = []; gotKey = false;
+    },
     frame(key, data) {
       if (!ms) return;
       if (!key && !gotKey) return;

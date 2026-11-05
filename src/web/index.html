@@ -16,8 +16,6 @@
     <div class="stat"><b>Lens</b><span id="lensNow">–</span></div>
   </header>
 
-  <div id="setupBanner" hidden><span id="setupBannerText"></span><button class="btn small" id="setupBannerBtn">Show setup</button></div>
-
   <div id="setup" hidden>
     <h1>Set up Blackmagic Cam Remote</h1>
     <p class="lead">Three things need to be ready before the dashboard starts. This page re-checks automatically.</p>
@@ -34,6 +32,8 @@
           <div class="qrwrap">
             <div id="qrBox" class="qr" hidden></div>
             <div class="qrside">
+              <input type="text" id="qrIp" placeholder="Phone IP, e.g. 192.168.1.20" inputmode="decimal">
+              <p>The IP part of <i>IP address &amp; Port</i> on the Wireless debugging screen. Needed only where the phone can't be found automatically (Docker Desktop on Mac/Windows); remembered afterwards.</p>
               <button class="btn active" id="qrBtn">Show pairing QR code</button>
               <p id="qrStatus"></p>
             </div>

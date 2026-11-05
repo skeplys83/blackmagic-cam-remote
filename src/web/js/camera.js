@@ -22,8 +22,15 @@ async function refresh(props) { // REST read into P (fallback, and right after o
 let renderQueued = false;
 function scheduleRender() { if (!renderQueued) { renderQueued = true; requestAnimationFrame(() => { renderQueued = false; render(); }); } }
 
+let eventSource = null;
+
+function stopEvents() {
+  if (eventSource) { eventSource.close(); eventSource = null; }
+}
+
 function startEvents() {
-  const es = new EventSource('/events');
+  stopEvents();
+  const es = eventSource = new EventSource('/events');
   es.addEventListener('snapshot', (e) => {
     Object.assign(P, JSON.parse(e.data));
     const missing = FALLBACK.filter(k => !(k in P));
@@ -40,7 +47,7 @@ function startEvents() {
 }
 
 // Light safety net in case an event is missed.
-setInterval(() => refresh(['/transports/0/record', '/camera/power', '/media/workingset']), 10000);
+setInterval(() => { if (dashboardOn) refresh(['/transports/0/record', '/camera/power', '/media/workingset']); }, 10000);
 
 function render() {
   const online = P['@connected'] !== false && !!P['/transports/0/record'];

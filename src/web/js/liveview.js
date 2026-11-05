@@ -115,6 +115,17 @@ function playPcm(data) {
   mirror.playhead += buf.duration;
 }
 
+// Stop the live view completely; closing the stream makes the helper end the capture session on the phone.
+function stopMirror() {
+  mirror.gen++; // cancels pending reconnects
+  if (mirror.abort) { mirror.abort.abort(); mirror.abort = null; }
+  if (mirror.decoder && mirror.decoder.state !== 'closed') mirror.decoder.close();
+  mirror.decoder = null; mirror.config = null; mirror.gotKey = false;
+  mse.stop();
+  $('takeover').hidden = true;
+  stageMsg('Connecting to phone…');
+}
+
 async function runMirror() {
   const gen = ++mirror.gen;
   if (mirror.abort) mirror.abort.abort();
@@ -199,5 +210,5 @@ setInterval(() => {
   $('vstat').textContent = mirror.frames ? `${mirror.frames} fps · ${(mirror.bytes * 8 / 1e6).toFixed(1)} Mbit/s` : '';
   mirror.frames = 0; mirror.bytes = 0;
 }, 1000);
-setInterval(() => { if (mirror.crop === 'viewport') fetchViewport(); }, 15000);
-showRot(); pollOrientation(); setInterval(pollOrientation, 1000);
+setInterval(() => { if (dashboardOn && mirror.crop === 'viewport') fetchViewport(); }, 15000);
+showRot(); setInterval(() => { if (dashboardOn) pollOrientation(); }, 1000);

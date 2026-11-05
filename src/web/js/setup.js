@@ -2,7 +2,9 @@
 
 // ---------- setup ----------
 
-let booted = false, lastSetup = null;
+// The dashboard only runs while every check passes. If one fails, it stops (live view, events, polling)
+// and the setup screen shows until everything is ready again.
+let dashboardOn = false, notReadyCount = 0, lastSetup = null;
 
 function renderSetup(st) {
   lastSetup = st;
@@ -20,8 +22,6 @@ function renderSetup(st) {
   const phoneOk = st.groups.phone.every(c => c.ok);
   $('pairBox').hidden = phoneOk;
   $('launchRow').hidden = !st.groups.app.some(c => c.title === 'Blackmagic Camera open' && !c.ok);
-  const failing = Object.values(st.groups).flat().filter(c => !c.ok && !c.optional).map(c => c.title);
-  $('setupBannerText').textContent = 'Not ready: ' + failing.join(', ');
 }
 
 async function checkSetup() {
@@ -29,10 +29,13 @@ async function checkSetup() {
   try { st = await (await fetch('/setup')).json(); }
   catch { st = { ready: false, groups: { computer: [{ ok: false, title: 'Helper running', detail: "can't reach the helper", fix: 'Start it again (docker compose up -d).' }], phone: [], app: [] } }; }
   renderSetup(st);
-  if (st.ready && !booted) boot();
-  if (booted) { $('setupBanner').hidden = st.ready; if (st.ready) $('setup').hidden = true; }
-  else $('setup').hidden = false;
-  setTimeout(checkSetup, booted && st.ready ? 10000 : 2000);
+  if (st.ready) {
+    notReadyCount = 0;
+    if (!dashboardOn) startDashboard();
+  } else if (++notReadyCount >= (dashboardOn ? 2 : 1)) { // while in use, one failed check may be a hiccup; two in a row stop it
+    stopDashboard();
+  }
+  setTimeout(checkSetup, dashboardOn ? 5000 : 2000);
 }
 
 async function setupAction(action, body, btn) {
@@ -49,6 +52,7 @@ async function pollQr() {
   try {
     const r = await fetch('/setup/qr-status', { method: 'POST' }); const q = await r.json();
     $('qrStatus').textContent = q.message || '';
+    if (q.knownIp && !$('qrIp').value) $('qrIp').value = q.knownIp;
     if (['done', 'failed', 'timeout'].includes(q.state)) {
       clearInterval(qrTimer); qrTimer = null; $('qrBtn').textContent = 'Show a new QR code';
       if (q.state !== 'done') $('qrBox').hidden = true; else setTimeout(() => { $('qrBox').hidden = true; }, 3000);
@@ -58,7 +62,9 @@ async function pollQr() {
 $('qrBtn').onclick = async () => {
   $('qrBtn').disabled = true;
   try {
-    const r = await fetch('/setup/qr', { method: 'POST' }); const j = await r.json(); if (!r.ok) throw new Error(j.error);
+    const r = await fetch('/setup/qr', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ip: $('qrIp').value.trim() }) });
+    const j = await r.json(); if (!r.ok) throw new Error(j.error);
+    if (j.ip) $('qrIp').value = j.ip;
     $('qrBox').innerHTML = j.svg; $('qrBox').hidden = false; $('qrStatus').textContent = 'Scan the code with the phone';
     $('qrBtn').textContent = 'Show a new QR code';
     if (!qrTimer) qrTimer = setInterval(pollQr, 1000);
@@ -68,17 +74,27 @@ $('qrBtn').onclick = async () => {
 $('pairBtn').onclick = (e) => setupAction('pair', { address: $('pairAddr').value, code: $('pairCode').value }, e.target);
 $('connBtn').onclick = (e) => setupAction('connect', { address: $('connAddr').value }, e.target);
 $('launchBtn').onclick = (e) => setupAction('launch', {}, e.target);
-$('setupBannerBtn').onclick = () => { $('setup').hidden = !$('setup').hidden; };
 
-// Start the dashboard only once everything is set up.
-function boot() {
-  booted = true;
+function startDashboard() {
+  dashboardOn = true;
   $('setup').hidden = true; $('dash').hidden = false;
   if (!useWebCodecs && !MSE) stageMsg("This browser can't show the live view. Use a current Chrome, Edge, Firefox or Safari.");
   else runMirror();
   startEvents();
   loadClips();
-  loadAutomation(); pollPhone(); setInterval(pollPhone, 5000);
+  loadAutomation(); pollPhone();
 }
 
+function stopDashboard() {
+  $('dash').hidden = true; $('setup').hidden = false;
+  if (!dashboardOn) return;
+  dashboardOn = false;
+  stopMirror();
+  stopEvents();
+}
+
+setInterval(() => { if (dashboardOn) pollPhone(); }, 5000);
+
+// Prefill the phone IP if it's known from an earlier pairing.
+fetch('/setup/qr-status', { method: 'POST' }).then(r => r.json()).then(q => { if (q.knownIp) $('qrIp').value = q.knownIp; }).catch(() => {});
 checkSetup();

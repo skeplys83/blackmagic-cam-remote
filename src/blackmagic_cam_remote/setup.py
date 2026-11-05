@@ -1,5 +1,7 @@
 """Readiness checks shown on the setup screen, plus pairing (QR code or pairing code), connecting and launching the app."""
+import asyncio
 import platform
+import queue
 import re
 import secrets
 import shutil
@@ -106,9 +108,38 @@ _qr = {"name": None, "password": None, "state": "idle", "message": "", "started"
 
 _qr_lock = threading.Lock()
 
-def qr_start():
+def known_phone_ip():
+    """The phone's IP from an earlier pairing/connection, if any."""
+    return settings.get("phoneIp") or (settings.get("lastAddress") or "").rpartition(":")[0]
+
+
+def open_ports(ip, lo=30000, hi=65535):
+    """TCP ports open on ip (wireless debugging picks random ports in this range). Takes a few seconds."""
+    async def scan():
+        sem = asyncio.Semaphore(800)
+        found = []
+
+        async def probe(port):
+            async with sem:
+                try:
+                    _, w = await asyncio.wait_for(asyncio.open_connection(ip, port), 0.5)
+                    w.close()
+                    found.append(port)
+                except Exception:
+                    pass
+        await asyncio.gather(*(probe(p) for p in range(lo, hi + 1)))
+        return set(found)
+    return asyncio.run(scan())
+
+
+def qr_start(ip=""):
     if not shutil.which("qrencode"):
         raise RuntimeError("qrencode is not installed; pair with a code instead")
+    ip = (ip or "").strip() or known_phone_ip()
+    if ip and not re.fullmatch(r"\d{1,3}(\.\d{1,3}){3}", ip):
+        raise ValueError("enter the phone's IP address, e.g. 192.168.1.20")
+    if ip:
+        settings.update({"phoneIp": ip})
     name = "bcr-" + secrets.token_hex(3)
     password = "".join(secrets.choice(string.ascii_letters + string.digits) for _ in range(12))
     payload = f"WIFI:T:ADB;S:{name};P:{password};;"
@@ -116,52 +147,104 @@ def qr_start():
                          capture_output=True, text=True, timeout=10).stdout
     with _qr_lock:
         _qr.update(name=name, password=password, state="waiting", message="Scan the code with the phone", started=time.time())
-    threading.Thread(target=_qr_watch, args=(name, password), daemon=True).start()
-    return {"svg": svg, "name": name}
+    threading.Thread(target=_qr_watch, args=(name, password, ip), daemon=True).start()
+    return {"svg": svg, "name": name, "ip": ip}
 
-def _qr_watch(name, password):
+
+def _qr_watch(name, password, ip):
+    """Find the phone's pairing port after it scans the QR code, pair, then connect.
+
+    Two ways to find it, whichever answers first: mDNS (the phone advertises _adb-tls-pairing._tcp under
+    the QR's name), and, when the phone's IP is known, watching that IP for the port that opens after the
+    scan. The second one works where mDNS can't reach (Docker Desktop on macOS/Windows).
+    """
+    def current():
+        with _qr_lock:
+            return _qr["name"] == name
+
     def set_state(state, message):
         with _qr_lock:
             if _qr["name"] == name:
                 _qr.update(state=state, message=message)
-    seen_any = False
+
+    found = queue.Queue()
+    scan = {"baseline": None}
+
+    def watch_ports():
+        try:
+            scan["baseline"] = known = open_ports(ip)
+            while current():
+                ports = open_ports(ip)
+                for port in sorted(ports - known):
+                    found.put(f"{ip}:{port}")
+                known |= ports
+        except Exception as e:
+            print("qr: port watch failed:", e, flush=True)
+
+    if ip:
+        threading.Thread(target=watch_ports, daemon=True).start()
+        set_state("waiting", f"Scan the code with the phone (watching {ip})")
+    seen_mdns, tried = False, set()
     deadline = time.time() + 180
-    while time.time() < deadline:
-        with _qr_lock:
-            if _qr["name"] != name:
-                return  # replaced by a newer code
+    while time.time() < deadline and current():
         services = mdns_services()
-        seen_any = seen_any or bool(services)
-        pairing = [s for s in services if s[0] == name and s[1] == "_adb-tls-pairing._tcp"]
-        if pairing:
-            addr = pairing[0][2]
+        seen_mdns = seen_mdns or bool(services)
+        candidates = [s[2] for s in services if s[0] == name and s[1] == "_adb-tls-pairing._tcp"]
+        while not found.empty():
+            candidates.append(found.get())
+        for addr in candidates:
+            if addr in tried:
+                continue
+            tried.add(addr)
             set_state("pairing", f"Pairing with {addr}…")
-            out = subprocess.run(["adb", "pair", addr, password], capture_output=True, text=True, timeout=30)
+            out = subprocess.run(["adb", "pair", addr, password], capture_output=True, text=True, timeout=20)
             msg = (out.stdout + out.stderr).strip()
-            if "Successfully paired" not in msg:
-                return set_state("failed", msg or "pairing failed")
-            ip = addr.rsplit(":", 1)[0]
-            set_state("connecting", "Paired. Connecting…")
-            for _ in range(20):  # the phone advertises its connect port right after pairing
-                for s in mdns_services():
-                    if s[1] == "_adb-tls-connect._tcp" and s[2].startswith(ip + ":"):
-                        subprocess.run(["adb", "connect", s[2]], capture_output=True, timeout=15)
-                        settings.update({"lastAddress": s[2]})
-                        return set_state("done", f"Paired and connected to {s[2]}")
-                time.sleep(1)
-            return set_state("done", "Paired. Enter the IP address & port below to connect.")
-        if not seen_any and time.time() - _qr["started"] > 25:
-            set_state("waiting", "Nothing found on the network yet. If the phone already shows \"Pairing\", this setup can't see "
-                                 "local-network discovery (Docker Desktop on macOS/Windows): pair with a code instead.")
+            if "Successfully paired" in msg:
+                return _connect_after_pairing(addr, scan.get("baseline") or set(), set_state)
+            set_state("waiting", f"{addr} didn't accept the pairing ({msg or 'no answer'}); still watching…")
+        if not seen_mdns and not ip and time.time() - _qr["started"] > 20:
+            set_state("waiting", "The phone isn't found automatically here (no local-network discovery, e.g. Docker Desktop). "
+                                 "Enter the phone's IP address below and show a new code, or pair with a code instead.")
         time.sleep(1)
-    set_state("timeout", "The code expired. Show a new one to try again.")
+    if current():
+        set_state("timeout", "The code expired. Show a new one to try again.")
+
+
+def _connect_after_pairing(pair_addr, baseline, set_state):
+    ip, _, pair_port = pair_addr.rpartition(":")
+    settings.update({"phoneIp": ip})
+    set_state("connecting", "Paired. Connecting…")
+
+    def connect(addr):
+        out = subprocess.run(["adb", "connect", addr], capture_output=True, text=True, timeout=10)
+        if "connected to" in out.stdout + out.stderr:
+            settings.update({"lastAddress": addr})
+            set_state("done", f"Paired and connected to {addr}")
+            return True
+        return False
+
+    for _ in range(5):  # mDNS: the phone advertises its connect port right after pairing
+        for s in mdns_services():
+            if s[1] == "_adb-tls-connect._tcp" and s[2].startswith(ip + ":") and connect(s[2]):
+                return
+        time.sleep(1)
+    # No mDNS: try the other open ports (the connect port is open while Wireless debugging is on).
+    skip = {int(pair_port), config.API_PORT, 2222}
+    for port in sorted((open_ports(ip) | baseline) - skip):
+        try:
+            if connect(f"{ip}:{port}"):
+                return
+        except subprocess.TimeoutExpired:
+            pass
+    set_state("done", "Paired. Enter the IP address & port from the Wireless debugging screen below to connect.")
+
 
 def setup_action(action, body):
     if action == "qr":
-        return qr_start()
+        return qr_start(str(body.get("ip", "")))
     if action == "qr-status":
         with _qr_lock:
-            return {"state": _qr["state"], "message": _qr["message"], "name": _qr["name"]}
+            return {"state": _qr["state"], "message": _qr["message"], "name": _qr["name"], "knownIp": known_phone_ip()}
     if action == "pair":
         addr, code = str(body.get("address", "")).strip(), str(body.get("code", "")).strip()
         if not re.fullmatch(r"[\w.\-]+:\d+", addr) or not re.fullmatch(r"\d{6}", code):
