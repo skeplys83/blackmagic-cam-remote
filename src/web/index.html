@@ -9,7 +9,7 @@
 <body class="setup-mode">
 <div class="wrap">
   <header>
-    <h1><span class="dot" id="conn"></span> <span><span id="phoneName">Phone</span><small>Blackmagic Camera</small></span></h1>
+    <h1><span class="dot" id="conn"></span><span id="phoneName">Phone</span></h1>
     <div class="pills">
       <span class="pill" id="livePhone">Phone –</span>
       <span class="pill" id="liveApp">App –</span>
@@ -68,8 +68,8 @@
         <canvas id="view" width="16" height="9"></canvas>
         <div class="recbox"><button id="rec" title="Start / stop recording (space)" disabled><i></i></button></div>
         <div id="stageMsg">Connecting to phone…</div>
-        <div id="takeover" hidden style="position:absolute;inset:0;display:grid;place-items:center;align-content:center;gap:12px;color:var(--dim)">
-          Live view moved to another tab or window.<button class="btn" id="takeoverBtn">Show it here</button>
+        <div id="takeover" hidden style="position:absolute;inset:0;display:grid;place-items:center">
+          <div class="box">Live view moved to another tab or window.<button class="btn" id="takeoverBtn">Show it here</button></div>
         </div>
       </div>
       <div class="toolbar">

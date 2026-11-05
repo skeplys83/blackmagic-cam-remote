@@ -1,6 +1,7 @@
 // Shared helpers: DOM shortcut, toasts, REST calls to the camera (via /api), small UI utilities.
 
 const $ = (id) => document.getElementById(id);
+let dashboardOn = false; // true while the dashboard runs (set by setup.js)
 let state = { recording: false, online: false };
 const dragging = new Set();
 
@@ -22,7 +23,10 @@ async function api(path, method = 'GET', body) {
 }
 
 async function send(path, method, body, label) {
-  try { await api(path, method, body); setTimeout(() => refresh([('/' + path).replace('/monitoring/Device/', '/monitoring/LCD/')]), 150); }
+  const prop = ('/' + path).replace('/monitoring/Device/', '/monitoring/LCD/'), sent = Date.now();
+  // Re-read the value only if the camera hasn't pushed it by then: a late read could otherwise overwrite
+  // the newer pushed value with the old one (sliders "snapping back").
+  try { await api(path, method, body); setTimeout(() => { if (!((lastEvent[prop] || 0) > sent)) refresh([prop]); }, 700); }
   catch (e) { toast((label || path) + ': ' + e.message); }
 }
 

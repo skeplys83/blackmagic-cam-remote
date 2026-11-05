@@ -13,6 +13,7 @@ Modules:
   setup       setup-screen checks, pairing, connecting
   readiness   live connection / app-in-front state, pushed to the page
   recordings  clip list, playback/download, thumbnails
+  recformat   recording resolution changes (via a temporary preset)
   auth        optional password login
   tls         HTTPS for the dashboard
   webserver   the HTTP server and its routes

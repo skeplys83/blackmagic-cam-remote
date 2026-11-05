@@ -4,6 +4,7 @@
 // P holds the latest value of every property, keyed like '/video/iso'. The phone screen is 'LCD' in events, 'Device' in REST.
 
 const P = {};
+const lastEvent = {}; // property -> time of its last pushed update
 const FALLBACK = ['/system/videoFormat', '/system/codecFormat', '/system/format', '/system/supportedFormats', '/system/audioCodec', '/camera/power', '/media/workingset',
   '/video/autoExposure', '/video/supportedISOs', '/video/iso', '/video/shutter', '/video/supportedShutters', '/video/whiteBalance',
   '/lens/iris', '/lens/focus/autoFocus', '/lens/focus', '/lens/zoom/description', '/lens/zoom', '/lens/cameras', '/transports/0/record',
@@ -22,29 +23,26 @@ async function refresh(props) { // REST read into P (fallback, and right after o
 let renderQueued = false;
 function scheduleRender() { if (!renderQueued) { renderQueued = true; requestAnimationFrame(() => { renderQueued = false; render(); }); } }
 
-let eventSource = null;
-
-function stopEvents() {
-  if (eventSource) { eventSource.close(); eventSource = null; }
+// The page has one live stream (/events, opened in setup.js) carrying both the setup state and the camera's
+// properties; these two handle the camera part.
+function onCameraSnapshot(data) {
+  Object.assign(P, data);
+  if (dashboardOn) startEvents();
+  scheduleRender();
 }
 
+function onCameraChange({ p, v }) {
+  if (p === '/transports/0/record' && P[p] && P[p].recording && !v.recording) setTimeout(loadClips, 1500); // a clip just finished
+  if (p === '/presets') setTimeout(() => refresh(['/presets/active']), 200);
+  P[p] = v; lastEvent[p] = Date.now(); scheduleRender();
+}
+
+// When the dashboard starts: fill in anything the camera didn't push in its snapshot.
 function startEvents() {
-  stopEvents();
-  const es = eventSource = new EventSource('/events');
-  es.addEventListener('snapshot', (e) => {
-    Object.assign(P, JSON.parse(e.data));
-    const missing = FALLBACK.filter(k => !(k in P));
-    if (missing.length) refresh(missing);
-    scheduleRender();
-  });
-  es.onmessage = (e) => {
-    const { p, v } = JSON.parse(e.data);
-    if (p === '/transports/0/record' && P[p] && P[p].recording && !v.recording) setTimeout(loadClips, 1500); // a clip just finished
-    if (p === '/presets') setTimeout(() => refresh(['/presets/active']), 200);
-    P[p] = v; scheduleRender();
-  };
-  es.onerror = () => { P['@connected'] = false; scheduleRender(); };
+  const missing = FALLBACK.filter(k => !(k in P));
+  if (missing.length) refresh(missing);
 }
+function stopEvents() {}
 
 // The timecode isn't always pushed while recording, so read it twice a second then.
 setInterval(async () => {
@@ -71,7 +69,7 @@ function render() {
 
   const sys = P['/system'], pow = P['/camera/power'], media = P['/media/workingset'];
   const vf = P['/system/videoFormat'] || sys?.videoFormat, cf = P['/system/codecFormat'] || sys?.codecFormat; // the /system event isn't shaped like REST /system
-  if (vf && cf) $('fmt').textContent = `${vf.name} · ${cf.codec.split(':')[0]}`;
+  if (vf && cf) $('fmt').textContent = `${vf.name.replace(' @ ', ' ')} ${cf.codec.split(':')[0]}`; // narrow sidebar: wraps per word
   if (pow) $('bat').textContent = pow.batteries?.[0] ? pow.batteries[0].chargeRemainingPercent + '%' : pow.source;
   if (media) { const d = media.workingset.find(w => w.activeDisk) || media.workingset[0]; $('left').textContent = fmtMins(d?.remainingRecordTime); }
 

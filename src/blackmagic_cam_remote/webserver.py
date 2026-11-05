@@ -17,6 +17,7 @@ from .adb import phone_host
 from .mirror import PRESETS, T_REPLACED, Mirror, take_over
 from .phone import orientation, phone_status, viewport
 from .recordings import clip_size, list_clips, read_range, thumbnail
+from .recformat import set_resolution
 from .screen import screen
 from .settings import settings
 from .setup import setup_action, setup_status
@@ -211,8 +212,6 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 return self._mirror(q)
             if u.path == "/setup":
                 return self._json(readiness.readiness.snapshot() or setup_status())
-            if u.path == "/setup/events":
-                return self._setup_events()
             if u.path == "/events":
                 return self._events()
             if u.path == "/phone":
@@ -239,32 +238,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self._send(404, b"not found", "text/plain")
 
     def _events(self):
-        q, snapshot = events.hub.subscribe()
-        self.send_response(200)
-        self.send_header("Content-Type", "text/event-stream")
-        self.send_header("Cache-Control", "no-store")
-        self.send_header("Connection", "close")
-        self.end_headers()
-        self.close_connection = True
-        try:
-            snapshot["@connected"] = events.hub.connected
-            self.wfile.write(f"event: snapshot\ndata: {json.dumps(snapshot)}\n\n".encode())
-            self.wfile.flush()
-            while True:
-                try:
-                    prop, value = q.get(timeout=15)
-                    self.wfile.write(f"data: {json.dumps({'p': prop, 'v': value})}\n\n".encode())
-                except queue.Empty:
-                    self.wfile.write(b": keepalive\n\n")
-                self.wfile.flush()
-        except OSError:
-            pass
-        finally:
-            events.hub.unsubscribe(q)
-
-    def _setup_events(self):
-        """Readiness pushed as it changes (Server-Sent Events): decides setup screen vs. dashboard."""
-        q, state = readiness.readiness.subscribe()
+        """One stream per page (Server-Sent Events) for everything live: the setup state ("setup" events) and the
+        camera's properties ("snapshot", then one message per change). Browsers allow only ~6 connections per
+        server across all tabs, so a page keeps just this and the live view open."""
+        q = queue.Queue(maxsize=2000)
+        q, snapshot = events.hub.subscribe(q)
+        _, state = readiness.readiness.subscribe(q)
         self.send_response(200)
         self.send_header("Content-Type", "text/event-stream")
         self.send_header("Cache-Control", "no-store")
@@ -273,17 +252,24 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.close_connection = True
         try:
             if state:
-                self.wfile.write(f"data: {json.dumps(state)}\n\n".encode())
-                self.wfile.flush()
+                self.wfile.write(f"event: setup\ndata: {json.dumps(state)}\n\n".encode())
+            snapshot["@connected"] = events.hub.connected
+            self.wfile.write(f"event: snapshot\ndata: {json.dumps(snapshot)}\n\n".encode())
+            self.wfile.flush()
             while True:
                 try:
-                    self.wfile.write(f"data: {json.dumps(q.get(timeout=15))}\n\n".encode())
+                    prop, value = q.get(timeout=15)
+                    if prop == "@setup":
+                        self.wfile.write(f"event: setup\ndata: {json.dumps(value)}\n\n".encode())
+                    else:
+                        self.wfile.write(f"data: {json.dumps({'p': prop, 'v': value})}\n\n".encode())
                 except queue.Empty:
                     self.wfile.write(b": keepalive\n\n")
                 self.wfile.flush()
         except OSError:
             pass
         finally:
+            events.hub.unsubscribe(q)
             readiness.readiness.unsubscribe(q)
 
     def _local_write(self):
@@ -291,6 +277,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         length = int(self.headers.get("Content-Length") or 0)
         try:
             body = json.loads(self.rfile.read(length) or b"{}") if length else {}
+            if u.path == "/format/resolution" and self.command == "POST":
+                return self._json(set_resolution(body["width"], body["height"], body.get("openGate", False)))
             if u.path == "/screen" and self.command == "POST":
                 screen.set(bool(body.get("on")))
                 return self._json({"screenOff": screen.off})

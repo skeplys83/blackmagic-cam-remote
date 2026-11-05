@@ -8,7 +8,7 @@ Nothing here polls the phone quickly:
                     server isn't answering yet (it restarts ~2 s after the app comes back), otherwise every 2 s.
   - everything else (tools, app installed, port owner, network): setup_status() every 10 s and right after
     any change above.
-The combined state is what /setup and /setup/events return, and what decides setup screen vs. dashboard.
+The combined state is what /setup returns and /events pushes ("setup" events), and what decides setup screen vs. dashboard.
 """
 import queue
 import socket
@@ -43,8 +43,8 @@ class Readiness:
 
     # ---- subscribers (Server-Sent Events) ----
 
-    def subscribe(self):
-        q = queue.Queue(maxsize=100)
+    def subscribe(self, q=None):
+        q = q or queue.Queue(maxsize=100)
         with self.lock:
             self.clients.append(q)
             state = self.state
@@ -110,7 +110,7 @@ class Readiness:
             clients = list(self.clients) if changed else []
         for q in clients:
             try:
-                q.put_nowait(state)
+                q.put_nowait(("@setup", state))
             except queue.Full:
                 pass
 

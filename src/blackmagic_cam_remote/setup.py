@@ -194,6 +194,7 @@ def _qr_watch(name, password, ip):
                 _qr.update(state=state, message=message)
 
     found = queue.Queue()
+    done = threading.Event()  # stops the port scan when this pairing attempt ends, however it ends
     # Ports that can't be the pairing port: the camera's API and its remote-control port, and the
     # phone's connect port if we know it from an earlier connection.
     skip = {config.API_PORT, 2222}
@@ -208,9 +209,10 @@ def _qr_watch(name, password, ip):
             if port not in seen and port not in skip:
                 seen.add(port)
                 found.put(f"{ip}:{port}")
+        keep_going = lambda: current() and not done.is_set()  # noqa: E731
         try:
-            while current():
-                open_ports(ip, on_port, current)
+            while keep_going():
+                open_ports(ip, on_port, keep_going)
                 seen.clear()  # next sweep: offer ports again (e.g. a pairing port that opened late)
         except Exception as e:
             print("qr: port scan failed:", e, flush=True)
@@ -218,6 +220,13 @@ def _qr_watch(name, password, ip):
     if ip:
         threading.Thread(target=scan_loop, daemon=True).start()
         set_state("waiting", f"Scan the code with the phone (watching {ip})")
+    try:
+        _qr_pair_loop(name, password, ip, found, current, set_state)
+    finally:
+        done.set()
+
+
+def _qr_pair_loop(name, password, ip, found, current, set_state):
     seen_mdns, tried, refused = False, set(), []
     deadline = time.time() + 180
     while time.time() < deadline and current():

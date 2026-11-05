@@ -13,7 +13,10 @@ const mirror = {
 try { mirror.rot = localStorage.getItem('rot') || 'auto'; } catch {}
 const canvas = $('view'), ctx2d = canvas.getContext('2d');
 
-function stageMsg(text) { $('stageMsg').textContent = text || ''; $('stageMsg').hidden = !text; }
+function stageMsg(text) { // shown in a rounded box over the picture
+  const box = document.createElement('span'); box.textContent = text || '';
+  $('stageMsg').replaceChildren(...(text ? [box] : [])); $('stageMsg').hidden = !text;
+}
 
 async function fetchViewport() {
   try {

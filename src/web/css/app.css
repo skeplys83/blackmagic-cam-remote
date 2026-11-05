@@ -8,19 +8,21 @@
 [hidden] { display: none !important; }
 body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.4 -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif; }
 /* Page: phone info as a sidebar on the left, everything else to its right. */
-.wrap { max-width: 1760px; margin: 0 auto; padding: 16px; display: grid; grid-template-columns: 112px minmax(0, 1fr); column-gap: 14px; align-items: start; }
+.wrap { max-width: 1760px; margin: 0 auto; padding: 16px; display: grid; grid-template-columns: max-content minmax(0, 1fr); column-gap: 12px; align-items: start; }
 .wrap > header { grid-column: 1; grid-row: 1 / span 20; }
 .wrap > :not(header) { grid-column: 2; }
 
+/* As narrow as its longest word; it grows downwards instead. */
 header { position: sticky; top: calc(16px + env(safe-area-inset-top, 0px)); display: flex; flex-direction: column; gap: 12px;
-         padding: 12px 10px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; min-width: 0; }
-header h1 { font-size: 13px; font-weight: 600; margin: 0; display: flex; align-items: flex-start; gap: 6px; overflow-wrap: anywhere; }
-header h1 .dot { margin-top: 5px; }
+         width: min-content; padding: 10px 8px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; }
+header h1 { font-size: 12px; font-weight: 600; margin: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
+header h1 .dot { margin: 0; }
 header h1 small { display: block; font-size: 10px; font-weight: 400; color: var(--dim); }
 .pills { display: flex; flex-direction: column; align-items: stretch; gap: 5px; }
-header .pill { font-size: 10px; padding: 2px 7px; text-align: center; white-space: normal; }
+header .pill { font-size: 10px; padding: 2px 6px; text-align: center; }
 header .stat b { font-size: 9.5px; }
-header .stat span { font-size: 12px; overflow-wrap: anywhere; }
+header .stat span { font-size: 12px; }
+header .stat { gap: 1px; }
 /* The setup screen gets the whole width; no phone sidebar there. */
 body.setup-mode header { display: none; }
 body.setup-mode .wrap { grid-template-columns: minmax(0, 1fr); }
@@ -30,7 +32,8 @@ body.setup-mode .wrap { grid-template-columns: minmax(0, 1fr); }
   .wrap { grid-template-columns: minmax(0, 1fr); }
   .wrap > header, .wrap > :not(header) { grid-column: 1; grid-row: auto; }
   header { position: static; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 12px 24px; margin-bottom: 16px; }
-  header .pill { white-space: nowrap; }
+  header { width: auto; }
+  header h1 { flex-direction: row; align-items: center; }
   .pills { flex-direction: row; }
 }
 .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--dim); flex: none; }
@@ -192,3 +195,9 @@ input[type=range]:disabled { cursor: default; opacity: .4; }
   .settings { grid-template-columns: repeat(2, minmax(0, 1fr));
               grid-template-areas: "exp wb" "mon mon" "pre ph" "rec rec"; }
 }
+
+/* Messages over the live view get the same rounded dark box as the record button. */
+#stageMsg { pointer-events: none; }
+.stagebox, #stageMsg > span, #takeover > .box { display: inline-flex; flex-direction: column; align-items: center; gap: 10px; padding: 10px 16px;
+  border-radius: 14px; background: rgba(13, 15, 18, .72); border: 1px solid rgba(255, 255, 255, .12); box-shadow: 0 4px 16px rgba(0, 0, 0, .5);
+  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); color: var(--text); max-width: 80%; text-align: center; }

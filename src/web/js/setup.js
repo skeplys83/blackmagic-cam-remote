@@ -3,9 +3,9 @@
 // ---------- setup ----------
 
 // The dashboard only runs while every check passes. The helper pushes the setup state as it changes
-// (/setup/events): phone connection and "app in front" within a fraction of a second, the rest every few seconds.
+// (the "setup" events on /events): phone connection and "app in front" within a fraction of a second, the rest every few seconds.
 // If anything fails, the dashboard stops (live view, events, polling) and the setup screen shows.
-let dashboardOn = false, lastSetup = null;
+let lastSetup = null; // dashboardOn lives in core.js (loaded first)
 
 function renderSetup(st) {
   lastSetup = st;
@@ -35,18 +35,23 @@ function applySetup(st) {
 // Live status pills in the header: phone connection and Blackmagic Camera in front.
 function renderLive(live) {
   const pill = (id, ok, text) => { $(id).textContent = text; $(id).className = 'pill ' + (ok ? 'ok' : 'bad'); };
-  if (!live) { pill('livePhone', false, 'Helper offline'); pill('liveApp', false, 'App –'); return; }
-  pill('livePhone', live.connected, live.connected ? `Phone · ${live.wireless ? 'Wi-Fi' : 'USB'}` : 'Phone disconnected');
-  pill('liveApp', live.inFront, live.inFront ? 'App in front' : 'App not in front');
+  if (!live) { pill('livePhone', false, 'Helper offline'); pill('liveApp', false, 'App'); return; }
+  pill('livePhone', live.connected, live.connected ? (live.wireless ? 'Wi-Fi' : 'USB') : 'Offline');
+  pill('liveApp', live.inFront, live.inFront ? 'App open' : 'App closed');
+  $('livePhone').title = live.connected ? `Phone connected over ${live.wireless ? 'wireless debugging' : 'USB'}` : 'Phone not connected';
+  $('liveApp').title = live.inFront ? 'Blackmagic Camera is open in front' : 'Blackmagic Camera is not in front';
 }
 
 const HELPER_DOWN = { ready: false, live: null, groups: { computer: [{ ok: false, title: 'Helper running', detail: "can't reach the helper",
   fix: 'Start it again (docker compose up -d).' }], phone: [], app: [] } };
 
+// The page's single live stream: setup state + camera properties (browsers allow only ~6 connections per server).
 function watchSetup() {
-  const es = new EventSource('/setup/events');
-  es.onmessage = (e) => applySetup(JSON.parse(e.data));
-  es.onerror = () => applySetup(HELPER_DOWN); // EventSource reconnects by itself
+  const es = new EventSource('/events');
+  es.addEventListener('setup', (e) => applySetup(JSON.parse(e.data)));
+  es.addEventListener('snapshot', (e) => onCameraSnapshot(JSON.parse(e.data)));
+  es.onmessage = (e) => onCameraChange(JSON.parse(e.data));
+  es.onerror = () => { P['@connected'] = false; applySetup(HELPER_DOWN); }; // EventSource reconnects by itself
 }
 
 async function setupAction(action, body, btn) {

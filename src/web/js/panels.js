@@ -40,14 +40,20 @@ function putFormat(changes) {
     offSpeedEnabled: f.offSpeedEnabled, offSpeedFrameRate: f.offSpeedFrameRate, recordResolution: f.recordResolution, sensorResolution: f.sensorResolution, ...changes };
   send('system/format', 'PUT', body, 'Recording format').then(() => refresh(['/system', '/system/format']));
 }
-$('fmtRes').onchange = (e) => {
+// Resolution changes go through the helper (the app's API reverts them otherwise; see recformat.py).
+$('fmtRes').onchange = async (e) => {
   const x = formats()[+e.target.value], f = P['/system/format']; if (!x || !f) return;
-  const codecs = x.codecs.length ? x.codecs : codecList;
-  putFormat({ recordResolution: x.recordResolution, sensorResolution: x.sensorResolution,
-    frameRate: x.frameRates.includes(f.frameRate) ? f.frameRate : x.frameRates[0],
-    codec: !codecs.length || codecs.includes(f.codec) ? f.codec : codecs[0],
-    minOffSpeedFrameRate: x.minOffSpeedFrameRate, maxOffSpeedFrameRate: x.maxOffSpeedFrameRate,
-    offSpeedFrameRate: Math.min(Math.max(f.offSpeedFrameRate, x.minOffSpeedFrameRate), x.maxOffSpeedFrameRate) });
+  const sel = e.target; sel.disabled = true; toast('Changing resolution…');
+  try {
+    const r = await fetch('/format/resolution', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ width: x.recordResolution.width, height: x.recordResolution.height, openGate: /open gate/i.test(x.resolutionDescriptor.description) }) });
+    const j = await r.json(); if (!r.ok) throw new Error(j.error);
+    await refresh(['/system', '/system/format', '/system/videoFormat']);
+    const now = P['/system/format'];
+    if (now && !x.frameRates.includes(now.frameRate)) putFormat({ frameRate: x.frameRates[0] }); // not available at this size
+    toast('Resolution: ' + j.name);
+  } catch (err) { toast('Resolution: ' + err.message); refresh(['/system/format']); }
+  sel.disabled = false;
 };
 $('fmtFps').onchange = (e) => putFormat({ frameRate: e.target.value });
 $('fmtCodec').onchange = (e) => putFormat({ codec: e.target.value });
@@ -118,7 +124,7 @@ const presetLabel = (n) => n.replace(/\.bmcpreset$/i, '');
 let presetConfirm = null;
 
 function renderPresets() {
-  const list = P['/presets']?.presets || [], active = P['/presets/active']?.preset || '';
+  const list = (P['/presets']?.presets || []).filter(n => !n.startsWith('bcr-')), active = P['/presets/active']?.preset || ''; // bcr-*: the helper's temporary presets
   const box = $('presetList');
   const key = JSON.stringify([list, active, presetConfirm]);
   if (box.dataset.key === key) return;

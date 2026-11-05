@@ -29,8 +29,8 @@ class EventHub:
         """Retry the websocket now (e.g. the app's API just came back)."""
         self.retry.set()
 
-    def subscribe(self):
-        q = queue.Queue(maxsize=2000)
+    def subscribe(self, q=None):
+        q = q or queue.Queue(maxsize=2000)
         with self.lock:
             self.clients.append(q)
             snapshot = dict(self.cache)
