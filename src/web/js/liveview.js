@@ -50,6 +50,7 @@ function drawFrame(src) {
   if (canvas.width !== cw || canvas.height !== ch) {
     canvas.width = cw; canvas.height = ch;
     $('stage').style.setProperty('--ar', `${cw} / ${ch}`);
+    fitLiveTile();
   }
   ctx2d.setTransform(1, 0, 0, 1, cw / 2, ch / 2);
   ctx2d.rotate(r * Math.PI / 180);
@@ -58,6 +59,17 @@ function drawFrame(src) {
   mirror.frames++;
   stageMsg('');
 }
+
+// The live-view tile (heading, picture, toolbar, record button) never gets taller than the window:
+// the picture's maximum height is the window height minus everything else in the tile.
+function fitLiveTile() {
+  const tile = $('liveTile'), stage = $('stage');
+  if (!tile.offsetParent) return; // dashboard hidden
+  const chrome = tile.offsetHeight - stage.offsetHeight;
+  stage.style.setProperty('--maxh', Math.max(160, window.innerHeight - chrome - 16) + 'px');
+}
+window.addEventListener('resize', fitLiveTile);
+new ResizeObserver(fitLiveTile).observe(document.querySelector('#liveTile .toolbar')); // the toolbar can wrap
 
 // WebCodecs (lowest latency) needs a secure page: https:// or http://localhost. Elsewhere, use MSE.
 const useWebCodecs = window.isSecureContext && 'VideoDecoder' in window;

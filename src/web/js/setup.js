@@ -81,6 +81,7 @@ $('launchBtn').onclick = (e) => setupAction('launch', {}, e.target);
 function startDashboard() {
   dashboardOn = true;
   $('setup').hidden = true; $('dash').hidden = false;
+  fitLiveTile();
   if (!useWebCodecs && !MSE) stageMsg("This browser can't show the live view. Use a current Chrome, Edge, Firefox or Safari.");
   else runMirror();
   startEvents();
