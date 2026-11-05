@@ -1,0 +1,981 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pixel Cam Remote</title>
+<style>
+  :root {
+    --bg: #0d0f12; --panel: #171a1f; --line: #262a31; --text: #e8eaed; --dim: #8b929c;
+    --accent: #3d9bff; --rec: #e5303a; --ok: #3ccf7a; --warn: #f2b33d;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.4 -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif; }
+  .wrap { max-width: 1500px; margin: 0 auto; padding: 16px; }
+
+  header { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px; padding: 12px 16px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; }
+  header h1 { font-size: 15px; font-weight: 600; margin: 0; margin-right: auto; display: flex; align-items: center; gap: 8px; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--dim); flex: none; }
+  .dot.ok { background: var(--ok); } .dot.bad { background: var(--rec); }
+  .stat { display: flex; flex-direction: column; }
+  .stat b { font-size: 11px; font-weight: 500; color: var(--dim); text-transform: uppercase; letter-spacing: .06em; }
+  .stat span { font-variant-numeric: tabular-nums; font-size: 15px; }
+
+  .main { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 16px; margin-top: 16px; align-items: start; }
+  @media (max-width: 1000px) { .main { grid-template-columns: 1fr; } }
+  .side { display: grid; gap: 16px; }
+
+  section { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
+  section h2 { font-size: 12px; font-weight: 600; color: var(--dim); text-transform: uppercase; letter-spacing: .08em; margin: 0 0 14px; display: flex; align-items: center; gap: 10px; }
+  section h2 .grow { margin-left: auto; }
+
+  /* Stage takes the stream's shape (edge to edge, no bars) and is as large as fits; resolution doesn't change it. */
+  .stage { --ar: 16 / 9; --maxh: min(82vh, 1200px); position: relative; background: #000; border-radius: 8px; overflow: hidden;
+           aspect-ratio: var(--ar); width: min(100%, calc(var(--maxh) * var(--ar))); margin: 0 auto; }
+  #view { display: block; width: 100%; height: 100%; }
+  #stageMsg { position: absolute; inset: 0; display: grid; place-items: center; color: var(--dim); text-align: center; padding: 16px; }
+  .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin-top: 12px; }
+  .toolbar .grow { margin-left: auto; color: var(--dim); font-variant-numeric: tabular-nums; font-size: 12px; }
+
+  /* Record button floats over the live view, bottom centre, on a rounded dark box. */
+  .recbox { position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%); z-index: 2;
+            padding: 10px 18px; border-radius: 18px; background: rgba(13, 15, 18, .72);
+            border: 1px solid rgba(255, 255, 255, .12); box-shadow: 0 4px 16px rgba(0, 0, 0, .5);
+            backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
+  #rec { width: 64px; height: 64px; border-radius: 50%; border: 4px solid #fff; background: transparent;
+         cursor: pointer; display: grid; place-items: center; }
+  #rec i { width: 44px; height: 44px; border-radius: 50%; background: var(--rec); transition: all .15s; }
+  #rec.on i { width: 28px; height: 28px; border-radius: 6px; }
+  #rec:disabled { opacity: .4; cursor: default; }
+
+  .row { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
+  .row:last-child { margin-bottom: 0; }
+  .row label { width: 92px; color: var(--dim); flex: none; }
+  .row output { min-width: 64px; text-align: right; font-variant-numeric: tabular-nums; }
+  input[type=range] { flex: 1; min-width: 100px; accent-color: var(--accent); }
+  select, .btn { background: #20242b; color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 7px 12px; font: inherit; cursor: pointer; text-decoration: none; display: inline-block; }
+  .btn:hover, select:hover { border-color: #3a404a; }
+  .btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .btn.small { padding: 4px 10px; font-size: 12px; }
+  .seg { display: flex; flex-wrap: wrap; gap: 6px; }
+
+  #clips { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+  .card { background: #1d2127; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+  .card .thumb { aspect-ratio: 16 / 9; background: #000 center / cover no-repeat; cursor: pointer; position: relative; }
+  .card .thumb::after { content: "▶"; position: absolute; inset: 0; display: grid; place-items: center; font-size: 28px; color: #fff; opacity: 0; transition: opacity .15s; text-shadow: 0 2px 8px #000; }
+  .card .thumb:hover::after { opacity: .9; }
+  .card .meta { padding: 10px; display: grid; gap: 4px; }
+  .card .name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .card .sub { color: var(--dim); font-size: 12px; display: flex; justify-content: space-between; gap: 8px; align-items: center; }
+  .empty { color: var(--dim); }
+
+  dialog { background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 12px; padding: 12px; max-width: min(1200px, 94vw); width: 100%; }
+  dialog::backdrop { background: rgba(0, 0, 0, .7); }
+  dialog video { width: 100%; max-height: 78vh; background: #000; border-radius: 8px; display: block; }
+  dialog .bar { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+  dialog .bar span { margin-right: auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  #toast { position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: #2a2f37; border: 1px solid var(--line); padding: 10px 16px; border-radius: 10px; opacity: 0; transition: opacity .2s; pointer-events: none; max-width: calc(100% - 32px); z-index: 10; }
+  #toast.show { opacity: 1; }
+  .note { color: var(--dim); font-size: 12px; margin: 16px 0 0; }
+
+  .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 16px; margin-top: 16px; align-items: start; }
+  table.mon { width: 100%; border-collapse: collapse; margin-bottom: 14px; }
+  table.mon th { color: var(--dim); font-weight: 500; font-size: 12px; text-align: center; padding: 0 4px 8px; }
+  table.mon th:first-child, table.mon td:first-child { text-align: left; color: var(--dim); }
+  table.mon td { padding: 4px; text-align: center; }
+  .tgl { min-width: 54px; }
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin-bottom: 14px; }
+  .stats .stat span.warn { color: var(--warn); } .stats .stat span.bad { color: var(--rec); }
+  .presets { display: grid; gap: 6px; margin-bottom: 12px; }
+  .preset { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; }
+  .preset.active { border-color: var(--accent); }
+  .preset .pname { margin-right: auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  input[type=text], input[type=number] { background: #20242b; color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; font: inherit; }
+  input[type=text] { flex: 1; min-width: 120px; }
+  input[type=number] { width: 80px; }
+  label.check { display: flex; align-items: center; gap: 8px; width: auto; color: var(--text); cursor: pointer; }
+  .btn:disabled, select:disabled { opacity: .45; cursor: default; }
+
+  /* Setup screen */
+  #setup { max-width: 1100px; margin: 24px auto 0; }
+  #setup h1 { font-size: 22px; margin: 0 0 6px; }
+  #setup .lead { color: var(--dim); margin: 0 0 18px; }
+  .steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; align-items: start; }
+  .step h2 .badge { margin-left: auto; font-size: 11px; padding: 2px 8px; border-radius: 99px; background: #2a2f37; color: var(--dim); letter-spacing: 0; text-transform: none; }
+  .step.ok h2 .badge { background: rgba(60, 207, 122, .15); color: var(--ok); }
+  .step.bad h2 .badge { background: rgba(229, 48, 58, .15); color: #ff6b73; }
+  .check { display: grid; grid-template-columns: 20px 1fr; gap: 2px 8px; padding: 8px 0; border-top: 1px solid var(--line); }
+  .check:first-child { border-top: 0; }
+  .check .ic { font-weight: 700; }
+  .check.ok .ic { color: var(--ok); } .check.bad .ic { color: var(--rec); } .check.opt .ic { color: var(--warn); }
+  .check .d { color: var(--dim); font-size: 12px; grid-column: 2; }
+  .check .fix { grid-column: 2; font-size: 12px; color: var(--text); background: #20242b; border-radius: 6px; padding: 6px 8px; margin-top: 4px; }
+  .pair { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); display: grid; gap: 8px; }
+  .pair p { margin: 0; color: var(--dim); font-size: 12px; }
+  .pair .row { margin: 0; }
+  #setupBanner { margin-top: 12px; padding: 10px 14px; border-radius: 10px; background: rgba(229, 48, 58, .12); border: 1px solid rgba(229, 48, 58, .4); display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+  #setupBanner span { margin-right: auto; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1><span class="dot" id="conn"></span> <span id="phoneName">Phone</span> · Blackmagic Camera</h1>
+    <div class="stat"><b>Format</b><span id="fmt">–</span></div>
+    <div class="stat"><b>Battery</b><span id="bat">–</span></div>
+    <div class="stat"><b>Rec time left</b><span id="left">–</span></div>
+    <div class="stat"><b>Lens</b><span id="lensNow">–</span></div>
+  </header>
+
+  <div id="setupBanner" hidden><span id="setupBannerText"></span><button class="btn small" id="setupBannerBtn">Show setup</button></div>
+
+  <div id="setup" hidden>
+    <h1>Set up Pixel Cam Remote</h1>
+    <p class="lead">Three things need to be ready before the dashboard starts. This page re-checks automatically.</p>
+    <div class="steps">
+      <section class="step" id="step-computer"><h2>1 · Computer <span class="badge">checking…</span></h2><div class="checks"></div></section>
+      <section class="step" id="step-phone"><h2>2 · Phone connection <span class="badge">checking…</span></h2><div class="checks"></div>
+        <div class="pair" id="pairBox">
+          <p><b>Wireless debugging</b>: on the phone open Settings → System → Developer options → Wireless debugging (turn on Developer options by tapping Settings → About phone → Build number 7 times). Phone and computer must be on the same Wi-Fi.</p>
+          <p>First time only: tap <i>Pair device with pairing code</i> and enter what it shows:</p>
+          <div class="row"><input type="text" id="pairAddr" placeholder="IP address & port, e.g. 192.168.1.20:37099"><input type="text" id="pairCode" placeholder="6-digit code" maxlength="6" style="max-width:110px;flex:none"><button class="btn" id="pairBtn">Pair</button></div>
+          <p>Then connect using the <i>IP address &amp; Port</i> shown at the top of the Wireless debugging screen (it changes when Wi-Fi debugging restarts):</p>
+          <div class="row"><input type="text" id="connAddr" placeholder="IP address & port, e.g. 192.168.1.20:41235"><button class="btn" id="connBtn">Connect</button></div>
+          <p><b>USB debugging</b> works too when the computer can reach USB devices (Linux, or running without Docker): plug in the phone and allow the prompt.</p>
+        </div>
+      </section>
+      <section class="step" id="step-app"><h2>3 · Blackmagic Camera <span class="badge">checking…</span></h2><div class="checks"></div>
+        <div class="row" style="margin-top:12px" id="launchRow" hidden><button class="btn" id="launchBtn">Open Blackmagic Camera on the phone</button></div>
+      </section>
+    </div>
+  </div>
+
+  <div id="dash" hidden>
+  <div class="main">
+    <section>
+      <h2>Live view</h2>
+      <div class="stage" id="stage">
+        <canvas id="view" width="16" height="9"></canvas>
+        <div class="recbox"><button id="rec" title="Start / stop recording (space)" disabled><i></i></button></div>
+        <div id="stageMsg">Connecting to phone…</div>
+        <div id="takeover" hidden style="position:absolute;inset:0;display:grid;place-items:center;align-content:center;gap:12px;color:var(--dim)">
+          Live view moved to another tab or window.<button class="btn" id="takeoverBtn">Show it here</button>
+        </div>
+      </div>
+      <div class="toolbar">
+        <div class="seg" id="crop">
+          <button class="btn small active" data-v="viewport">Viewport</button>
+          <button class="btn small" data-v="full">Full screen</button>
+        </div>
+        <button class="btn small" id="sound">🔇 Sound off</button>
+        <div class="seg" id="rot" title="Rotate the live view">
+          <button class="btn small active" data-v="auto">Auto</button>
+          <button class="btn small" data-v="0">0°</button>
+          <button class="btn small" data-v="90">90°</button>
+          <button class="btn small" data-v="180">180°</button>
+          <button class="btn small" data-v="270">270°</button>
+        </div>
+        <select id="quality" title="Live view quality (24 fps max)">
+          <option value="native">Native (2424 px · 12 Mbit/s)</option>
+          <option value="medium" selected>Medium (1600 px · 6 Mbit/s)</option>
+          <option value="low">Low (1024 px · 3 Mbit/s)</option>
+          <option value="ultralow">Ultra low (640 px · 1 Mbit/s)</option>
+        </select>
+        <span class="grow" id="vstat"></span>
+      </div>
+    </section>
+
+    <div class="side">
+      <section>
+        <h2>Exposure</h2>
+        <div class="row"><label>Auto exposure</label>
+          <div class="seg" id="ae">
+            <button class="btn" data-v="Continuous">Auto</button>
+            <button class="btn" data-v="Off">Manual</button>
+          </div>
+        </div>
+        <div class="row"><label>ISO</label><select id="iso"></select></div>
+        <div class="row"><label>Shutter</label><select id="shutter"></select></div>
+        <div class="row"><label>Iris</label><output id="iris" style="text-align:left">–</output></div>
+      </section>
+
+      <section>
+        <h2>White balance</h2>
+        <div class="row"><label>Temperature</label><input type="range" id="wb" min="2500" max="10000" step="50"><output id="wbOut">–</output></div>
+        <div class="row"><label>Tint</label><input type="range" id="tint" min="-50" max="50" step="1"><output id="tintOut">–</output></div>
+        <div class="row"><label></label><button class="btn" id="wbAuto">Auto white balance (one shot)</button></div>
+      </section>
+
+      <section>
+        <h2>Focus</h2>
+        <div class="row"><label>Autofocus</label>
+          <div class="seg" id="af">
+            <button class="btn" data-v="Continuous">Continuous</button>
+            <button class="btn" data-v="off">Manual</button>
+          </div>
+        </div>
+        <div class="row"><label>Focus</label><input type="range" id="focus" min="0" max="1" step="0.001"><output id="focusOut">–</output></div>
+        <div class="row"><label></label><button class="btn" id="afOnce">Focus once</button></div>
+      </section>
+
+      <section>
+        <h2>Lens &amp; zoom</h2>
+        <div class="row"><label>Camera</label><div class="seg" id="lenses"></div></div>
+        <div class="row"><label>Zoom</label><input type="range" id="zoom" min="0" max="1" step="0.001"><output id="zoomOut">–</output></div>
+      </section>
+    </div>
+  </div>
+
+  <div class="grid2">
+    <section>
+      <h2>Recording format</h2>
+      <div class="row"><label>Resolution</label><select id="fmtRes" style="flex:1"></select></div>
+      <div class="row"><label>Frame rate</label><select id="fmtFps"></select></div>
+      <div class="row"><label>Codec</label><select id="fmtCodec"></select></div>
+      <div class="row"><label>Off-speed</label><label class="check"><input type="checkbox" id="fmtOff"> on</label>
+        <input type="number" id="fmtOffFps" min="1" step="1"> <span id="fmtOffRange" style="color:var(--dim);font-size:12px"></span></div>
+      <div class="row"><label>Audio codec</label><output id="fmtAudio" style="text-align:left">–</output></div>
+      <div class="row" id="fmtNote" style="color:var(--dim);font-size:12px" hidden>Stop recording to change the format.</div>
+    </section>
+
+    <section>
+      <h2>Monitoring overlays</h2>
+      <table class="mon">
+        <thead><tr><th></th><th>Phone screen</th><th>HDMI out</th></tr></thead>
+        <tbody id="monTable"></tbody>
+      </table>
+      <div class="row"><label>Focus assist</label>
+        <select id="faMode"><option value="Peak">Peak</option><option value="ColoredLines">Colored lines</option></select>
+        <select id="faColor"><option>Red</option><option>Green</option><option>Blue</option><option>White</option><option>Black</option></select>
+      </div>
+      <div class="row"><label>FA intensity</label><input type="range" id="faInt" min="1" max="100" step="1"><output id="faIntOut">–</output></div>
+      <div class="row"><label>Zebra level</label><select id="zebraLevel"><option>75</option><option>80</option><option>85</option><option>90</option><option>95</option><option>100</option></select> %</div>
+      <div class="row"><label>Frame guide</label><select id="guideRatio"></select></div>
+      <div class="row"><label>Grids</label><div class="seg" id="grids">
+        <button class="btn small" data-v="Thirds">Thirds</button><button class="btn small" data-v="Crosshair">Crosshair</button>
+        <button class="btn small" data-v="Dot">Dot</button><button class="btn small" data-v="Horizon">Horizon</button></div></div>
+      <div class="row"><label>Safe area</label><input type="range" id="safePct" min="50" max="100" step="1"><output id="safePctOut">–</output></div>
+    </section>
+
+    <section>
+      <h2>Presets</h2>
+      <div class="presets" id="presetList"><div class="empty">No presets yet.</div></div>
+      <div class="row"><input type="text" id="presetName" placeholder="New preset name" maxlength="60"><button class="btn" id="presetSave">Save current settings</button></div>
+    </section>
+
+    <section>
+      <h2>Phone</h2>
+      <div class="stats">
+        <div class="stat"><b>Temperature</b><span id="phTemp">–</span></div>
+        <div class="stat"><b>Thermal state</b><span id="phThermal">–</span></div>
+        <div class="stat"><b>Wi-Fi</b><span id="phWifi">–</span></div>
+        <div class="stat"><b>Free storage</b><span id="phStorage">–</span></div>
+        <div class="stat"><b>Battery</b><span id="phBattery">–</span></div>
+        <div class="stat"><b>Screen · DND</b><span id="phScreen">–</span></div>
+      </div>
+      <div class="row"><label class="check"><input type="checkbox" id="autoScreen"> Phone screen off while recording</label></div>
+      <div class="row"><label class="check"><input type="checkbox" id="autoDnd"> Do Not Disturb while recording</label></div>
+      <div class="row"><button class="btn" id="screenOff">Screen off now</button><button class="btn" id="screenOn">Screen on</button></div>
+      <p class="note" style="margin-top:4px">Screen off turns only the display panel off; the camera keeps running and touches still reach the app. A back gesture on the phone (swipe in from a screen edge) turns it on again.</p>
+    </section>
+  </div>
+
+  <section style="margin-top:16px">
+    <h2>Recordings <span class="grow"></span><button class="btn small" id="clipsRefresh">Refresh</button></h2>
+    <div id="clips"><div class="empty">Loading…</div></div>
+  </section>
+
+  <p class="note">Live view mirrors the phone's screen (overlays included) and sound comes from the phone's microphone; both run over adb, so keep Wireless debugging on.
+    Setting ISO or shutter switches exposure to Manual; moving the focus slider switches autofocus off; moving white balance locks it (use the phone to return WB to auto). Space bar = record.</p>
+  </div>
+</div>
+
+<dialog id="player">
+  <video id="playerVideo" controls playsinline></video>
+  <div class="bar"><span id="playerName"></span><a class="btn small" id="playerDl">Download</a><button class="btn small" id="playerClose">Close</button></div>
+</dialog>
+<div id="toast"></div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let state = { recording: false, online: false };
+const dragging = new Set();
+
+function toast(msg) {
+  const t = $('toast'); t.textContent = msg; t.classList.add('show');
+  clearTimeout(toast.h); toast.h = setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+async function api(path, method = 'GET', body) {
+  const opt = { method };
+  if (body !== undefined) { opt.body = JSON.stringify(body); opt.headers = { 'Content-Type': 'application/json' }; }
+  const r = await fetch('/api/' + path, opt);
+  if (!r.ok) {
+    const why = { 400: 'rejected by camera', 403: 'not allowed right now (try Manual exposure / focus first)', 502: 'phone unreachable' }[r.status] || ('error ' + r.status);
+    throw new Error(why);
+  }
+  const txt = await r.text();
+  return txt ? JSON.parse(txt) : null;
+}
+
+async function send(path, method, body, label) {
+  try { await api(path, method, body); setTimeout(() => refresh([('/' + path).replace('/monitoring/Device/', '/monitoring/LCD/')]), 150); }
+  catch (e) { toast((label || path) + ': ' + e.message); }
+}
+
+function setConn(ok) {
+  state.online = ok;
+  $('conn').className = 'dot ' + (ok ? 'ok' : 'bad');
+  $('rec').disabled = !ok;
+}
+
+function setSeg(id, v) {
+  for (const b of $(id).querySelectorAll('button')) b.classList.toggle('active', b.dataset.v === v);
+}
+
+function fmtMins(s) {
+  if (s == null) return '–';
+  const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60);
+  return h ? `${h}h ${m}m` : `${m}m`;
+}
+
+function fillSelect(sel, values, fmt) {
+  if (sel.options.length === values.length) return;
+  sel.innerHTML = values.map(v => `<option value="${v}">${fmt(v)}</option>`).join('');
+}
+
+function setSlider(id, v, out, text) {
+  if (!dragging.has(id)) $(id).value = v;
+  $(out).textContent = text;
+}
+
+// ---------- live camera state (Server-Sent Events from the phone's event websocket) ----------
+// P holds the latest value of every property, keyed like '/video/iso'. The phone screen is 'LCD' in events, 'Device' in REST.
+
+const P = {};
+const FALLBACK = ['/system/videoFormat', '/system/codecFormat', '/system/format', '/system/supportedFormats', '/system/audioCodec', '/camera/power', '/media/workingset',
+  '/video/autoExposure', '/video/supportedISOs', '/video/iso', '/video/shutter', '/video/supportedShutters', '/video/whiteBalance',
+  '/lens/iris', '/lens/focus/autoFocus', '/lens/focus', '/lens/zoom/description', '/lens/zoom', '/lens/cameras', '/transports/0/record',
+  '/transports/0/timecode', '/presets', '/presets/active', '/monitoring/focusAssist', '/monitoring/zebra', '/monitoring/frameGuideRatio',
+  '/monitoring/frameGrids', '/monitoring/safeAreaPercent',
+  ...['cleanFeed', 'displayLUT', 'zebra', 'focusAssist', 'frameGuide', 'frameGrids', 'safeArea', 'falseColor'].flatMap(k => [`/monitoring/LCD/${k}`, `/monitoring/HDMI/${k}`])];
+const restPath = (prop) => prop.replace('/monitoring/LCD/', '/monitoring/Device/').slice(1);
+
+async function refresh(props) { // REST read into P (fallback, and right after our own writes)
+  await Promise.all(props.map(async (prop) => {
+    try { const v = await api(restPath(prop)); if (v != null) P[prop] = v; } catch {}
+  }));
+  scheduleRender();
+}
+
+let renderQueued = false;
+function scheduleRender() { if (!renderQueued) { renderQueued = true; requestAnimationFrame(() => { renderQueued = false; render(); }); } }
+
+function startEvents() {
+  const es = new EventSource('/events');
+  es.addEventListener('snapshot', (e) => {
+    Object.assign(P, JSON.parse(e.data));
+    const missing = FALLBACK.filter(k => !(k in P));
+    if (missing.length) refresh(missing);
+    scheduleRender();
+  });
+  es.onmessage = (e) => {
+    const { p, v } = JSON.parse(e.data);
+    if (p === '/transports/0/record' && P[p] && P[p].recording && !v.recording) setTimeout(loadClips, 1500); // a clip just finished
+    if (p === '/presets') setTimeout(() => refresh(['/presets/active']), 200);
+    P[p] = v; scheduleRender();
+  };
+  es.onerror = () => { P['@connected'] = false; scheduleRender(); };
+}
+
+// Light safety net in case an event is missed.
+setInterval(() => refresh(['/transports/0/record', '/camera/power', '/media/workingset']), 10000);
+
+function render() {
+  const online = P['@connected'] !== false && !!P['/transports/0/record'];
+  setConn(online);
+  const rec = P['/transports/0/record'];
+  if (rec) {
+    state.recording = !!rec.recording;
+    $('rec').classList.toggle('on', state.recording);
+    $('rec').title = (state.recording ? 'Stop' : 'Start') + ' recording (space)';
+  }
+
+  const sys = P['/system'], pow = P['/camera/power'], media = P['/media/workingset'];
+  const vf = P['/system/videoFormat'] || sys?.videoFormat, cf = P['/system/codecFormat'] || sys?.codecFormat; // the /system event isn't shaped like REST /system
+  if (vf && cf) $('fmt').textContent = `${vf.name} · ${cf.codec.split(':')[0]}`;
+  if (pow) $('bat').textContent = pow.batteries?.[0] ? pow.batteries[0].chargeRemainingPercent + '%' : pow.source;
+  if (media) { const d = media.workingset.find(w => w.activeDisk) || media.workingset[0]; $('left').textContent = fmtMins(d?.remainingRecordTime); }
+
+  const ae = P['/video/autoExposure'], isos = P['/video/supportedISOs'], iso = P['/video/iso'];
+  const shut = P['/video/shutter'], shuts = P['/video/supportedShutters'], wb = P['/video/whiteBalance'], iris = P['/lens/iris'];
+  if (ae) setSeg('ae', ae.mode === 'Off' ? 'Off' : 'Continuous');
+  const manualExp = ae && ae.mode === 'Off';
+  if (isos) fillSelect($('iso'), isos.supportedISOs, v => v);
+  if (iso) {
+    const sel = $('iso');
+    sel.querySelectorAll('[data-auto]').forEach(o => o.remove());
+    if (![...sel.options].some(o => +o.value === iso.iso)) sel.insertAdjacentHTML('afterbegin', `<option value="${iso.iso}" data-auto>${iso.iso} (auto)</option>`);
+    sel.value = iso.iso;
+  }
+  if (shuts) fillSelect($('shutter'), shuts.shutterSpeeds, v => '1/' + v);
+  if (shut) {
+    const sel = $('shutter');
+    sel.querySelectorAll('[data-auto]').forEach(o => o.remove());
+    if (![...sel.options].some(o => +o.value === shut.shutterSpeed)) sel.insertAdjacentHTML('afterbegin', `<option value="${shut.shutterSpeed}" data-auto>1/${shut.shutterSpeed} (auto)</option>`);
+    sel.value = shut.shutterSpeed;
+  }
+  $('iso').disabled = $('shutter').disabled = !manualExp;
+  if (iris) $('iris').textContent = 'f/' + iris.apertureStop.toFixed(1) + ' (fixed)';
+  if (wb) {
+    setSlider('wb', wb.whiteBalance, 'wbOut', wb.whiteBalance + ' K');
+    setSlider('tint', wb.tint, 'tintOut', wb.tint);
+    state.tint = wb.tint;
+  }
+
+  const af = P['/lens/focus/autoFocus'], focus = P['/lens/focus'], zoomD = P['/lens/zoom/description'], zoom = P['/lens/zoom'], lenses = P['/lens/cameras'];
+  if (af) setSeg('af', af.enabled ? 'Continuous' : 'off');
+  if (focus) { state.focusDistance = focus.focusDistance; setSlider('focus', focus.normalized, 'focusOut', Math.round(focus.normalized * 100) + '%'); }
+  $('focus').disabled = !!(af && af.enabled);
+  if (zoomD) { $('zoom').dataset.min = zoomD.focalLength.min; $('zoom').dataset.max = zoomD.focalLength.max; }
+  if (zoom) setSlider('zoom', zoom.normalized, 'zoomOut', zoom.focalLength + ' mm');
+  if (lenses) {
+    const avail = lenses.cameras.filter(c => c.isAvailable);
+    const box = $('lenses');
+    const key = avail.map(c => c.id).join(',');
+    if (box.dataset.key !== key) {
+      box.dataset.key = key;
+      box.innerHTML = avail.map(c => `<button class="btn" data-v="${c.id}">${c.facing === 'front' ? 'Front' : c.zoomFactor} · ${c.focalLength}mm</button>`).join('');
+    }
+    const act = lenses.cameras.find(c => c.isActive);
+    if (act) { setSeg('lenses', act.id); $('lensNow').textContent = `${act.facing === 'front' ? 'Front' : act.zoomFactor} · ${act.focalLength}mm`; }
+  }
+
+  renderFormat(); renderMonitoring(); renderPresets();
+}
+
+// ---------- controls ----------
+
+// This app's API wants request bodies shaped like its GET responses.
+$('rec').onclick = () => send('transports/0/record', 'PUT', { recording: !state.recording, clipName: null }, state.recording ? 'Stop' : 'Record');
+document.addEventListener('keydown', (e) => {
+  if (e.code === 'Space' && !$('player').open && !['INPUT', 'SELECT', 'BUTTON'].includes(document.activeElement.tagName)) { e.preventDefault(); $('rec').click(); }
+});
+
+$('ae').onclick = (e) => { const v = e.target.dataset.v; if (v) send('video/autoExposure', 'PUT', { mode: v, type: null }, 'Auto exposure'); };
+$('iso').onchange = (e) => send('video/iso', 'PUT', { iso: +e.target.value }, 'ISO');
+$('shutter').onchange = (e) => send('video/shutter', 'PUT', { shutterSpeed: +e.target.value }, 'Shutter');
+$('wbAuto').onclick = () => send('video/whiteBalance/doAuto', 'PUT', undefined, 'Auto WB');
+$('af').onclick = (e) => {
+  const v = e.target.dataset.v; if (!v) return;
+  send('lens/focus/autoFocus', 'PUT', { supported: true, enabled: v !== 'off', mode: v === 'off' ? 'OneShot' : v, state: 'Idle', errors: null }, 'Autofocus');
+};
+$('afOnce').onclick = () => send('lens/focus/doAutoFocus', 'PUT', undefined, 'Focus once');
+$('lenses').onclick = (e) => { const v = e.target.closest('button')?.dataset.v; if (v) send('lens/cameras/active', 'PUT', { id: v }, 'Lens'); };
+
+// Sliders: send while dragging (throttled), don't let polling fight the user.
+function slider(id, out, fmt, push) {
+  const el = $(id); let t = 0, pending = null;
+  const flush = () => { if (pending == null) return; const v = pending; pending = null; push(v); };
+  el.addEventListener('pointerdown', () => dragging.add(id));
+  el.addEventListener('pointerup', () => { flush(); setTimeout(() => dragging.delete(id), 800); });
+  el.addEventListener('input', () => {
+    const v = +el.value; $(out).textContent = fmt(v); pending = v;
+    const now = Date.now(); if (now - t > 120) { t = now; flush(); }
+  });
+  el.addEventListener('change', flush);
+}
+slider('wb', 'wbOut', v => v + ' K', v => send('video/whiteBalance', 'PUT', { whiteBalance: v, tint: state.tint ?? 0 }, 'White balance'));
+slider('tint', 'tintOut', v => v, v => send('video/whiteBalanceTint', 'PUT', { whiteBalanceTint: v }, 'Tint'));
+slider('focus', 'focusOut', v => Math.round(v * 100) + '%', v => send('lens/focus', 'PUT', { focusDistance: state.focusDistance ?? 0, normalized: v, normalised: v, speed: null }, 'Focus'));
+slider('zoom', 'zoomOut', v => {
+  const z = $('zoom'); const mn = +z.dataset.min || 0, mx = +z.dataset.max || 1;
+  return Math.round(mn + (mx - mn) * v) + ' mm';
+}, v => send('lens/zoom', 'PUT', { normalized: v }, 'Zoom'));
+
+// ---------- recording format ----------
+
+let codecList = []; // /system/supportedCodecFormats isn't pushed as an event; read once
+api('system/supportedCodecFormats').then(v => { codecList = (v || []).map(c => c.codec); scheduleRender(); }).catch(() => {});
+const codecLabel = (c) => { const [k, q] = c.split(':'); return `${{ H265: 'H.265', H264: 'H.264', AV1: 'AV1' }[k] || k} ${q}`; };
+const sameRes = (a, b) => a && b && a.width === b.width && a.height === b.height;
+
+function formats() { return P['/system/supportedFormats']?.supportedFormats || []; }
+
+function renderFormat() {
+  const f = P['/system/format'], list = formats(); if (!f || !list.length) return;
+  const idx = list.findIndex(x => sameRes(x.recordResolution, f.recordResolution) && sameRes(x.sensorResolution, f.sensorResolution));
+  const res = $('fmtRes');
+  const key = list.map(x => x.recordResolution.width + 'x' + x.recordResolution.height).join();
+  if (res.dataset.key !== key) {
+    res.dataset.key = key;
+    res.innerHTML = list.map((x, i) => `<option value="${i}">${x.resolutionDescriptor.group} ${x.resolutionDescriptor.description} · ${x.recordResolution.width}×${x.recordResolution.height}</option>`).join('');
+  }
+  if (document.activeElement !== res) res.value = idx;
+  const cur = list[idx] || list[0];
+  const fps = $('fmtFps'); fps.innerHTML = cur.frameRates.map(r => `<option>${r}</option>`).join(''); fps.value = f.frameRate;
+  const codecs = cur.codecs.length ? cur.codecs : codecList;
+  const cs = $('fmtCodec'); cs.innerHTML = (codecs.length ? codecs : [f.codec]).map(c => `<option value="${c}">${codecLabel(c)}</option>`).join(''); cs.value = f.codec;
+  $('fmtOff').checked = !!f.offSpeedEnabled;
+  const off = $('fmtOffFps'); off.min = f.minOffSpeedFrameRate; off.max = f.maxOffSpeedFrameRate;
+  if (document.activeElement !== off) off.value = f.offSpeedFrameRate;
+  off.disabled = !f.offSpeedEnabled;
+  $('fmtOffRange').textContent = `${f.minOffSpeedFrameRate}–${f.maxOffSpeedFrameRate} fps`;
+  const a = P['/system/audioCodec']; $('fmtAudio').textContent = a ? a.codec : '–';
+  for (const id of ['fmtRes', 'fmtFps', 'fmtCodec', 'fmtOff']) $(id).disabled = state.recording;
+  if (state.recording) off.disabled = true;
+  $('fmtNote').hidden = !state.recording;
+}
+
+function putFormat(changes) {
+  const f = P['/system/format']; if (!f) return;
+  const body = { codec: f.codec, frameRate: f.frameRate, maxOffSpeedFrameRate: f.maxOffSpeedFrameRate, minOffSpeedFrameRate: f.minOffSpeedFrameRate,
+    offSpeedEnabled: f.offSpeedEnabled, offSpeedFrameRate: f.offSpeedFrameRate, recordResolution: f.recordResolution, sensorResolution: f.sensorResolution, ...changes };
+  send('system/format', 'PUT', body, 'Recording format').then(() => refresh(['/system', '/system/format']));
+}
+$('fmtRes').onchange = (e) => {
+  const x = formats()[+e.target.value], f = P['/system/format']; if (!x || !f) return;
+  const codecs = x.codecs.length ? x.codecs : codecList;
+  putFormat({ recordResolution: x.recordResolution, sensorResolution: x.sensorResolution,
+    frameRate: x.frameRates.includes(f.frameRate) ? f.frameRate : x.frameRates[0],
+    codec: !codecs.length || codecs.includes(f.codec) ? f.codec : codecs[0],
+    minOffSpeedFrameRate: x.minOffSpeedFrameRate, maxOffSpeedFrameRate: x.maxOffSpeedFrameRate,
+    offSpeedFrameRate: Math.min(Math.max(f.offSpeedFrameRate, x.minOffSpeedFrameRate), x.maxOffSpeedFrameRate) });
+};
+$('fmtFps').onchange = (e) => putFormat({ frameRate: e.target.value });
+$('fmtCodec').onchange = (e) => putFormat({ codec: e.target.value });
+$('fmtOff').onchange = (e) => putFormat({ offSpeedEnabled: e.target.checked });
+$('fmtOffFps').onchange = (e) => {
+  const f = P['/system/format']; const v = Math.round(+e.target.value);
+  if (f && v >= f.minOffSpeedFrameRate && v <= f.maxOffSpeedFrameRate) putFormat({ offSpeedFrameRate: v });
+  else toast(`Off-speed must be ${f?.minOffSpeedFrameRate}–${f?.maxOffSpeedFrameRate} fps`);
+};
+
+// ---------- monitoring overlays ----------
+
+const MON = [['focusAssist', 'Focus assist'], ['zebra', 'Zebra'], ['falseColor', 'False color'], ['frameGuide', 'Frame guide'],
+  ['frameGrids', 'Grids'], ['safeArea', 'Safe area'], ['displayLUT', 'Display LUT'], ['cleanFeed', 'Clean feed']];
+$('monTable').innerHTML = MON.map(([k, label]) => `<tr><td>${label}</td>` +
+  ['LCD', 'HDMI'].map(d => d === 'LCD' && k === 'cleanFeed' ? '<td>–</td>' : `<td><button class="btn small tgl" data-d="${d}" data-k="${k}">–</button></td>`).join('') + '</tr>').join('');
+
+function renderMonitoring() {
+  for (const b of $('monTable').querySelectorAll('button')) {
+    const v = P[`/monitoring/${b.dataset.d}/${b.dataset.k}`];
+    b.textContent = v ? (v.enabled ? 'On' : 'Off') : '–';
+    b.classList.toggle('active', !!v?.enabled);
+  }
+  const fa = P['/monitoring/focusAssist'];
+  if (fa) {
+    if (document.activeElement !== $('faMode')) $('faMode').value = String(fa.mode).replace(/\s/g, '');
+    if (document.activeElement !== $('faColor')) $('faColor').value = fa.color;
+    setSlider('faInt', fa.intensity, 'faIntOut', fa.intensity + '%');
+  }
+  const z = P['/monitoring/zebra']; if (z?.highlight && document.activeElement !== $('zebraLevel')) $('zebraLevel').value = z.highlight.level;
+  const gr = P['/monitoring/frameGuideRatio'], sel = $('guideRatio');
+  if (!sel.options.length) api('monitoring/frameGuideRatio/presets').then(v => { sel.innerHTML = v.presets.map(r => `<option>${r}</option>`).join(''); if (gr) sel.value = gr.ratio; }).catch(() => {});
+  if (gr && document.activeElement !== sel) sel.value = gr.ratio;
+  const g = P['/monitoring/frameGrids']?.frameGrids || [];
+  for (const b of $('grids').querySelectorAll('button')) b.classList.toggle('active', g.includes(b.dataset.v));
+  const sp = P['/monitoring/safeAreaPercent']; if (sp) setSlider('safePct', sp.percent, 'safePctOut', sp.percent + '%');
+}
+
+$('monTable').onclick = (e) => {
+  const b = e.target.closest('button'); if (!b) return;
+  const cur = P[`/monitoring/${b.dataset.d}/${b.dataset.k}`];
+  const rest = `monitoring/${b.dataset.d === 'LCD' ? 'Device' : 'HDMI'}/${b.dataset.k}`;
+  send(rest, 'PUT', { enabled: !cur?.enabled }, b.closest('tr').firstChild.textContent);
+};
+function putFocusAssist(changes) {
+  const fa = P['/monitoring/focusAssist'] || {};
+  send('monitoring/focusAssist', 'PUT', { mode: String(fa.mode || 'Peak').replace(/\s/g, ''), color: fa.color || 'Red', intensity: fa.intensity ?? 80, ...changes }, 'Focus assist');
+}
+$('faMode').onchange = (e) => putFocusAssist({ mode: e.target.value });
+$('faColor').onchange = (e) => putFocusAssist({ color: e.target.value });
+slider('faInt', 'faIntOut', v => v + '%', v => putFocusAssist({ intensity: v }));
+$('zebraLevel').onchange = (e) => {
+  const z = P['/monitoring/zebra'] || {};
+  send('monitoring/zebra', 'PUT', { highlight: { level: +e.target.value, enabled: z.highlight?.enabled ?? false }, skinTone: z.skinTone ?? null }, 'Zebra level');
+};
+$('guideRatio').onchange = (e) => send('monitoring/frameGuideRatio', 'PUT', { ratio: e.target.value }, 'Frame guide');
+$('grids').onclick = (e) => {
+  const v = e.target.dataset.v; if (!v) return;
+  const g = new Set(P['/monitoring/frameGrids']?.frameGrids || []);
+  g.has(v) ? g.delete(v) : g.add(v);
+  send('monitoring/frameGrids', 'PUT', { frameGrids: [...g] }, 'Grids');
+};
+slider('safePct', 'safePctOut', v => v + '%', v => send('monitoring/safeAreaPercent', 'PUT', { percent: v }, 'Safe area'));
+
+// ---------- presets ----------
+
+const presetLabel = (n) => n.replace(/\.bmcpreset$/i, '');
+let presetConfirm = null;
+
+function renderPresets() {
+  const list = P['/presets']?.presets || [], active = P['/presets/active']?.preset || '';
+  const box = $('presetList');
+  const key = JSON.stringify([list, active, presetConfirm]);
+  if (box.dataset.key === key) return;
+  box.dataset.key = key;
+  box.innerHTML = list.length ? list.map(n => `<div class="preset${n === active ? ' active' : ''}">
+      <span class="pname" title="${esc(n)}">${esc(presetLabel(n))}${n === active ? ' · active' : ''}</span>
+      <button class="btn small" data-act="load" data-n="${esc(n)}">Load</button>
+      <button class="btn small" data-act="update" data-n="${esc(n)}" title="Overwrite with the current camera settings">Update</button>
+      <button class="btn small" data-act="delete" data-n="${esc(n)}">${presetConfirm === n ? 'Confirm delete' : 'Delete'}</button>
+    </div>`).join('') : '<div class="empty">No presets yet.</div>';
+}
+
+$('presetList').onclick = async (e) => {
+  const b = e.target.closest('button'); if (!b) return;
+  const n = b.dataset.n, path = 'presets/' + encodeURIComponent(n);
+  if (b.dataset.act === 'load') { await send('presets/active', 'PUT', { preset: n }, 'Load preset'); refresh(['/presets/active']); }
+  if (b.dataset.act === 'update') { await send(path, 'PUT', undefined, 'Update preset'); toast(`Saved current settings to "${presetLabel(n)}"`); }
+  if (b.dataset.act === 'delete') {
+    if (presetConfirm !== n) { presetConfirm = n; renderPresets(); setTimeout(() => { if (presetConfirm === n) { presetConfirm = null; renderPresets(); } }, 4000); return; }
+    presetConfirm = null; await send(path, 'DELETE', undefined, 'Delete preset'); refresh(['/presets', '/presets/active']);
+  }
+};
+$('presetSave').onclick = async () => {
+  const name = $('presetName').value.trim().replace(/\.bmcpreset$/i, '');
+  if (!name || /[\x00-\x1F"\/:*?<>|\\]/.test(name)) { toast('Use a name without " / : * ? < > | \\'); return; }
+  const file = name + '.bmcpreset';
+  if ((P['/presets']?.presets || []).includes(file)) { toast(`"${name}" exists; use its Update button to overwrite`); return; }
+  await send('presets/' + encodeURIComponent(file), 'PUT', undefined, 'Save preset');
+  $('presetName').value = ''; refresh(['/presets', '/presets/active']);
+};
+$('presetName').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('presetSave').click(); });
+
+// ---------- phone (adb) ----------
+
+async function pollPhone() {
+  try {
+    const r = await fetch('/phone'); const p = await r.json(); if (!r.ok) throw new Error(p.error);
+    const t = p.skinTemperature ?? p.battery.temperature;
+    $('phTemp').textContent = t != null ? `${t.toFixed(1)} °C` + (p.battery.temperature != null ? ` · battery ${p.battery.temperature.toFixed(1)} °C` : '') : '–';
+    $('phTemp').className = t >= 45 ? 'bad' : t >= 40 ? 'warn' : '';
+    $('phThermal').textContent = p.thermal ?? '–';
+    $('phThermal').className = ['severe', 'critical', 'emergency', 'shutdown'].includes(p.thermal) ? 'bad' : p.thermal === 'moderate' ? 'warn' : '';
+    const w = p.wifi, q = w.rssi == null ? '' : w.rssi >= -55 ? 'excellent' : w.rssi >= -67 ? 'good' : w.rssi >= -75 ? 'fair' : 'weak';
+    $('phWifi').textContent = w.rssi != null ? `${w.rssi} dBm (${q})` + (w.linkMbps ? ` · ${w.linkMbps} Mbit/s` : '') + (w.frequencyMHz ? ` · ${(w.frequencyMHz / 1000).toFixed(1)} GHz` : '') : 'not connected';
+    $('phWifi').className = q === 'weak' ? 'bad' : q === 'fair' ? 'warn' : '';
+    $('phWifi').title = w.ssid || '';
+    $('phStorage').textContent = p.storage ? `${(p.storage.freeBytes / 1e9).toFixed(1)} GB of ${(p.storage.totalBytes / 1e9).toFixed(0)} GB` : '–';
+    $('phStorage').className = p.storage && p.storage.freeBytes < 5e9 ? 'bad' : p.storage && p.storage.freeBytes < 15e9 ? 'warn' : '';
+    $('phBattery').textContent = `${p.battery.level}%${p.battery.charging ? ' · charging' : ''}`;
+    $('phBattery').className = !p.battery.charging && p.battery.level <= 15 ? 'bad' : !p.battery.charging && p.battery.level <= 30 ? 'warn' : '';
+    $('phScreen').textContent = `${p.screenOff ? 'off' : 'on'} · DND ${p.dnd ? 'on' : 'off'}`;
+  } catch (e) { $('phTemp').textContent = '–'; $('phScreen').textContent = 'adb not connected'; }
+}
+
+async function loadAutomation() {
+  try { const a = await (await fetch('/automation')).json(); $('autoScreen').checked = a.screenOffWhileRecording; $('autoDnd').checked = a.dndWhileRecording; } catch {}
+}
+async function saveAutomation(changes) {
+  try { await fetch('/automation', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(changes) }); }
+  catch { toast('Could not save setting'); }
+  loadAutomation();
+}
+$('autoScreen').onchange = (e) => saveAutomation({ screenOffWhileRecording: e.target.checked });
+$('autoDnd').onchange = (e) => saveAutomation({ dndWhileRecording: e.target.checked });
+async function setScreen(on) {
+  try {
+    const r = await fetch('/screen', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ on }) });
+    if (!r.ok) throw new Error((await r.json()).error);
+  } catch (e) { toast('Screen: ' + e.message); }
+  pollPhone();
+}
+$('screenOff').onclick = () => setScreen(false);
+$('screenOn').onclick = () => setScreen(true);
+
+// ---------- live view (screen mirror + mic) ----------
+// Stream frames from /mirror: type u8, pts u64, size u32, payload.
+// Types: 0 session (width,height), 1 H.264 config (SPS/PPS), 2 key frame, 3 delta frame, 4 PCM s16le 48 kHz stereo,
+// 5 replaced (another page took the stream; don't reconnect).
+
+const mirror = {
+  crop: 'viewport', quality: 'medium', vw: 0, vh: 0, vp: null, abort: null, decoder: null,
+  config: null, gotKey: false, frames: 0, bytes: 0, audioCtx: null, gain: null, playhead: 0, gen: 0,
+  rot: 'auto', phoneRot: null,
+};
+try { mirror.rot = localStorage.getItem('rot') || 'auto'; } catch {}
+const canvas = $('view'), ctx2d = canvas.getContext('2d');
+
+function stageMsg(text) { $('stageMsg').textContent = text || ''; $('stageMsg').hidden = !text; }
+
+async function fetchViewport() {
+  try {
+    const r = await fetch('/viewport'); if (!r.ok) throw 0;
+    mirror.vp = await r.json();
+  } catch { mirror.vp = null; }
+}
+
+function cropRect() {
+  const { vw, vh, vp } = mirror;
+  if (mirror.crop !== 'viewport' || !vp) return [0, 0, vw, vh];
+  const [sw, sh] = vp.screen;
+  if ((sw > sh) !== (vw > vh)) { fetchViewport(); return [0, 0, vw, vh]; } // rotated: refresh
+  const kx = vw / sw, ky = vh / sh, [x1, y1, x2, y2] = vp.viewport;
+  return [Math.round(x1 * kx), Math.round(y1 * ky), Math.round((x2 - x1) * kx), Math.round((y2 - y1) * ky)];
+}
+
+function codecString(cfg) {
+  for (let i = 0; i + 4 < cfg.length; i++) {
+    if (cfg[i] === 0 && cfg[i + 1] === 0 && cfg[i + 2] === 1 && (cfg[i + 3] & 0x1f) === 7) {
+      const h = (b) => b.toString(16).padStart(2, '0');
+      return 'avc1.' + h(cfg[i + 4]) + h(cfg[i + 5]) + h(cfg[i + 6]);
+    }
+  }
+  return 'avc1.640028';
+}
+
+function newDecoder() {
+  if (mirror.decoder && mirror.decoder.state !== 'closed') mirror.decoder.close();
+  mirror.decoder = new VideoDecoder({
+    output: (frame) => {
+      const [sx, sy, sw, sh] = cropRect();
+      const r = rotation(), side = r % 180 !== 0;
+      const cw = side ? sh : sw, ch = side ? sw : sh;
+      if (canvas.width !== cw || canvas.height !== ch) {
+        canvas.width = cw; canvas.height = ch;
+        $('stage').style.setProperty('--ar', `${cw} / ${ch}`);
+      }
+      ctx2d.setTransform(1, 0, 0, 1, cw / 2, ch / 2);
+      ctx2d.rotate(r * Math.PI / 180);
+      ctx2d.drawImage(frame, sx, sy, sw, sh, -sw / 2, -sh / 2, sw, sh);
+      ctx2d.setTransform(1, 0, 0, 1, 0, 0);
+      frame.close();
+      mirror.frames++;
+      stageMsg('');
+    },
+    error: (e) => { console.warn('decoder', e); mirror.gotKey = false; },
+  });
+  mirror.decoder.configure({ codec: codecString(mirror.config), optimizeForLatency: true, hardwareAcceleration: 'prefer-hardware' });
+  mirror.gotKey = false;
+}
+
+function onPacket(type, pts, data) {
+  if (type === 0) {
+    const dv = new DataView(data.buffer, data.byteOffset);
+    mirror.vw = dv.getUint32(0); mirror.vh = dv.getUint32(4);
+    fetchViewport();
+  } else if (type === 1) {
+    mirror.config = data.slice(); newDecoder();
+  } else if (type === 2 || type === 3) {
+    if (!mirror.decoder || mirror.decoder.state !== 'configured') return;
+    if (type === 3 && !mirror.gotKey) return;
+    let payload = data;
+    if (type === 2) { // in-band SPS/PPS so the Annex B decoder can start here
+      payload = new Uint8Array(mirror.config.length + data.length);
+      payload.set(mirror.config); payload.set(data, mirror.config.length);
+      mirror.gotKey = true;
+    }
+    if (mirror.decoder.decodeQueueSize > 30 && type === 3) return; // falling behind
+    mirror.decoder.decode(new EncodedVideoChunk({ type: type === 2 ? 'key' : 'delta', timestamp: Number(pts), data: payload }));
+  } else if (type === 4) {
+    playPcm(data);
+  } else if (type === 5) {
+    mirror.replaced = true;
+  }
+}
+
+function playPcm(data) {
+  const ac = mirror.audioCtx; if (!ac) return;
+  const n = data.length / 4;
+  const buf = ac.createBuffer(2, n, 48000);
+  const L = buf.getChannelData(0), R = buf.getChannelData(1);
+  const dv = new DataView(data.buffer, data.byteOffset, data.length);
+  for (let i = 0; i < n; i++) { L[i] = dv.getInt16(i * 4, true) / 32768; R[i] = dv.getInt16(i * 4 + 2, true) / 32768; }
+  const now = ac.currentTime;
+  if (mirror.playhead < now + 0.02 || mirror.playhead > now + 0.35) mirror.playhead = now + 0.08; // (re)sync, ~80 ms buffer
+  const src = ac.createBufferSource(); src.buffer = buf; src.connect(mirror.gain); src.start(mirror.playhead);
+  mirror.playhead += buf.duration;
+}
+
+async function runMirror() {
+  const gen = ++mirror.gen;
+  if (mirror.abort) mirror.abort.abort();
+  const ctrl = new AbortController(); mirror.abort = ctrl;
+  mirror.replaced = false; $('takeover').hidden = true;
+  stageMsg('Connecting to phone…');
+  try {
+    const r = await fetch(`/mirror?quality=${mirror.quality}&audio=mic`, { signal: ctrl.signal });
+    if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || r.status);
+    const reader = r.body.getReader();
+    let buf = new Uint8Array(0);
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      mirror.bytes += value.length;
+      const merged = new Uint8Array(buf.length + value.length); merged.set(buf); merged.set(value, buf.length); buf = merged;
+      let off = 0;
+      while (buf.length - off >= 13) {
+        const dv = new DataView(buf.buffer, buf.byteOffset + off);
+        const size = dv.getUint32(9);
+        if (buf.length - off - 13 < size) break;
+        onPacket(dv.getUint8(0), dv.getBigUint64(1), buf.subarray(off + 13, off + 13 + size));
+        off += 13 + size;
+      }
+      buf = buf.slice(off);
+    }
+    throw new Error('stream ended');
+  } catch (e) {
+    if (gen !== mirror.gen) return; // replaced by a newer stream
+    if (mirror.replaced) { stageMsg(''); $('takeover').hidden = false; return; }
+    stageMsg('Live view disconnected (' + (e.message || e) + '). Reconnecting…');
+    setTimeout(() => { if (gen === mirror.gen) runMirror(); }, 2500);
+  }
+}
+
+// Clockwise rotation for the live view. Auto follows the phone's own screen rotation, which the
+// mirrored picture already has, so it adds no turn; the buttons force a fixed rotation.
+function rotation() { return mirror.rot === 'auto' ? 0 : +mirror.rot; }
+
+function showRot() {
+  setSeg('rot', mirror.rot);
+  const b = $('rot').querySelector('[data-v="auto"]'), r = mirror.phoneRot;
+  b.textContent = r != null ? `Auto (phone ${r}°)` : 'Auto';
+}
+
+async function pollOrientation() {
+  try {
+    const r = await fetch('/orientation'); if (!r.ok) return;
+    mirror.phoneRot = (await r.json()).rotation; showRot();
+  } catch {}
+}
+
+$('rot').onclick = (e) => {
+  const v = e.target.dataset.v; if (!v) return;
+  mirror.rot = v; showRot();
+  try { localStorage.setItem('rot', v); } catch {}
+};
+
+$('crop').onclick = (e) => {
+  const v = e.target.dataset.v; if (!v) return;
+  mirror.crop = v; setSeg('crop', v); if (v === 'viewport') fetchViewport();
+};
+$('takeoverBtn').onclick = () => runMirror();
+$('quality').onchange = (e) => {
+  mirror.quality = e.target.value; runMirror();
+  try { localStorage.setItem('quality', mirror.quality); } catch {}
+};
+try { const q = localStorage.getItem('quality'); if (q && $('quality').querySelector(`[value="${q}"]`)) { mirror.quality = q; $('quality').value = q; } } catch {}
+$('sound').onclick = () => {
+  if (!mirror.audioCtx) {
+    mirror.audioCtx = new AudioContext({ sampleRate: 48000, latencyHint: 'interactive' });
+    mirror.gain = mirror.audioCtx.createGain(); // full volume
+    mirror.gain.connect(mirror.audioCtx.destination);
+    $('sound').textContent = '🔊 Sound on'; $('sound').classList.add('active');
+  } else {
+    mirror.audioCtx.close(); mirror.audioCtx = null;
+    $('sound').textContent = '🔇 Sound off'; $('sound').classList.remove('active');
+  }
+};
+
+setInterval(() => {
+  $('vstat').textContent = mirror.frames ? `${mirror.frames} fps · ${(mirror.bytes * 8 / 1e6).toFixed(1)} Mbit/s` : '';
+  mirror.frames = 0; mirror.bytes = 0;
+}, 1000);
+setInterval(() => { if (mirror.crop === 'viewport') fetchViewport(); }, 15000);
+showRot(); pollOrientation(); setInterval(pollOrientation, 1000);
+
+// ---------- recordings ----------
+
+function fmtSize(b) { return b > 1e9 ? (b / 1e9).toFixed(2) + ' GB' : (b / 1e6).toFixed(1) + ' MB'; }
+function esc(s) { return s.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+
+async function loadClips() {
+  const box = $('clips');
+  try {
+    const r = await fetch('/clips'); const j = await r.json();
+    if (!r.ok) throw new Error(j.error);
+    if (!j.clips.length) { box.innerHTML = '<div class="empty">No recordings yet.</div>'; return; }
+    box.innerHTML = j.clips.map(c => {
+      const q = `name=${encodeURIComponent(c.name)}`;
+      const date = new Date(c.mtime * 1000).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
+      return `<div class="card">
+        <div class="thumb" data-name="${esc(c.name)}" style="background-image:url('/clips/thumb?${q}&size=${c.size}&mtime=${c.mtime}')"></div>
+        <div class="meta"><div class="name" title="${esc(c.name)}">${esc(c.name)}</div>
+          <div class="sub"><span>${date} · ${fmtSize(c.size)}</span><a class="btn small" href="/clips/file?${q}&download=1">Download</a></div></div>
+      </div>`;
+    }).join('');
+  } catch (e) { box.innerHTML = `<div class="empty">Couldn't list recordings: ${esc(String(e.message || e))}</div>`; }
+}
+
+$('clips').onclick = (e) => {
+  const t = e.target.closest('.thumb'); if (!t) return;
+  const q = 'name=' + encodeURIComponent(t.dataset.name);
+  $('playerVideo').src = '/clips/file?' + q;
+  $('playerName').textContent = t.dataset.name;
+  $('playerDl').href = '/clips/file?' + q + '&download=1';
+  $('player').showModal(); $('playerVideo').play().catch(() => {});
+};
+$('playerClose').onclick = () => $('player').close();
+$('player').addEventListener('close', () => { $('playerVideo').pause(); $('playerVideo').removeAttribute('src'); $('playerVideo').load(); });
+$('clipsRefresh').onclick = loadClips;
+
+// ---------- setup ----------
+
+let booted = false, lastSetup = null;
+
+function renderSetup(st) {
+  lastSetup = st;
+  for (const [key, checks] of Object.entries(st.groups)) {
+    const sec = $('step-' + key);
+    const good = checks.every(c => c.ok || c.optional);
+    sec.classList.toggle('ok', good); sec.classList.toggle('bad', !good);
+    sec.querySelector('.badge').textContent = good ? 'ready' : 'needs attention';
+    sec.querySelector('.checks').innerHTML = checks.map(c => `<div class="check ${c.ok ? 'ok' : c.optional ? 'opt' : 'bad'}">
+        <span class="ic">${c.ok ? '✓' : c.optional ? '!' : '✕'}</span><span>${esc(c.title)}</span>
+        ${c.detail ? `<span class="d">${esc(c.detail)}</span>` : ''}${!c.ok && c.fix ? `<span class="fix">${esc(c.fix)}</span>` : ''}</div>`).join('');
+  }
+  const dev = (st.devices || []).find(d => d.state === 'device');
+  if (dev?.model) $('phoneName').textContent = dev.model;
+  const phoneOk = st.groups.phone.every(c => c.ok);
+  $('pairBox').hidden = phoneOk;
+  $('launchRow').hidden = !st.groups.app.some(c => c.title === 'Blackmagic Camera open' && !c.ok);
+  const failing = Object.values(st.groups).flat().filter(c => !c.ok && !c.optional).map(c => c.title);
+  $('setupBannerText').textContent = 'Not ready: ' + failing.join(', ');
+}
+
+async function checkSetup() {
+  let st;
+  try { st = await (await fetch('/setup')).json(); }
+  catch { st = { ready: false, groups: { computer: [{ ok: false, title: 'Helper running', detail: "can't reach the helper", fix: 'Start it again (docker compose up -d).' }], phone: [], app: [] } }; }
+  renderSetup(st);
+  if (st.ready && !booted) boot();
+  if (booted) { $('setupBanner').hidden = st.ready; if (st.ready) $('setup').hidden = true; }
+  else $('setup').hidden = false;
+  setTimeout(checkSetup, booted && st.ready ? 10000 : 2000);
+}
+
+async function setupAction(action, body, btn) {
+  btn.disabled = true;
+  try {
+    const r = await fetch('/setup/' + action, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) });
+    const j = await r.json(); if (!r.ok) throw new Error(j.error);
+    toast(j.message || 'Done');
+  } catch (e) { toast(e.message); }
+  btn.disabled = false;
+}
+$('pairBtn').onclick = (e) => setupAction('pair', { address: $('pairAddr').value, code: $('pairCode').value }, e.target);
+$('connBtn').onclick = (e) => setupAction('connect', { address: $('connAddr').value }, e.target);
+$('launchBtn').onclick = (e) => setupAction('launch', {}, e.target);
+$('setupBannerBtn').onclick = () => { $('setup').hidden = !$('setup').hidden; };
+
+// Start the dashboard only once everything is set up.
+function boot() {
+  booted = true;
+  $('setup').hidden = true; $('dash').hidden = false;
+  if (!('VideoDecoder' in window)) stageMsg('This browser has no WebCodecs video decoder. Use Chrome, Edge or Safari 17+.');
+  else runMirror();
+  startEvents();
+  loadClips();
+  loadAutomation(); pollPhone(); setInterval(pollPhone, 5000);
+}
+
+checkSetup();
+</script>
+</body>
+</html>

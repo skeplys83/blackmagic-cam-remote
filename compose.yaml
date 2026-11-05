@@ -1,0 +1,23 @@
+services:
+  pixel-cam-remote:
+    build: .
+    image: pixel-cam-remote
+    container_name: pixel-cam-remote
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8080:8080"   # dashboard; reachable from this computer only
+    volumes:
+      - pcr-data:/data          # adb pairing keys, settings, thumbnails
+    environment:
+      # Set if the phone's Wi-Fi IP can't be found automatically:
+      # PCR_PHONE: "192.168.1.20"
+      PCR_PHONE: ${PCR_PHONE:-}
+
+    # Linux only: USB debugging and automatic wireless discovery. Uncomment both,
+    # and remove the "ports" section above (host networking publishes 8080 directly).
+    # network_mode: host
+    # devices:
+    #   - /dev/bus/usb:/dev/bus/usb
+
+volumes:
+  pcr-data:
