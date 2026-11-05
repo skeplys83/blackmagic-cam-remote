@@ -246,8 +246,7 @@ input[type=range]::-moz-range-thumb { width: 22px; height: 22px; border-width: 3
 .row label.check { width: auto; flex: 1 1 auto; min-width: 0; }
 
 /* App icon above the phone info, as wide as it: a link to the project on GitHub. */
-.brand { display: block; border-radius: 22%; -webkit-tap-highlight-color: transparent; transition: transform .15s; }
-.brand:hover { transform: scale(1.04); }
+.brand { display: block; border-radius: 22%; -webkit-tap-highlight-color: transparent; }
 .brand img { display: block; width: 100%; height: auto; aspect-ratio: 1; }
 .setuptitle { display: flex; align-items: center; gap: 12px; }
 .setuptitle img { width: 40px; height: 40px; display: block; }

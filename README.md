@@ -1,159 +1,158 @@
-<p align="center"><img src="src/web/img/icon-512.png" alt="Blackmagic Cam Remote icon" width="160"></p>
+<p align="center"><img src="src/web/img/icon-512.png" alt="Blackmagic Cam Remote icon" width="128"></p>
 
-# Blackmagic Cam Remote
+<h1 align="center">Blackmagic Cam Remote</h1>
 
-A browser dashboard for remote-controlling the **Blackmagic Camera** app on an Android phone from your computer: live view with overlays and sound, camera controls, recording format, monitoring overlays, presets, recordings, and phone health.
+<p align="center">Remote-control the <b>Blackmagic Camera</b> app on an Android phone from any browser:<br>
+live view with overlays and sound, camera controls, recording format, presets, recordings and phone health.</p>
 
-> Not affiliated with or endorsed by Blackmagic Design. "Blackmagic Camera" is their app; this project only talks to the HTTP API the app exposes on your local network, plus Android's standard debugging tools.
+<p align="center"><img src="docs/images/screenshot.jpg" alt="The dashboard: live view, lens, recording format and focus controls, exposure, white balance, audio, phone, monitoring overlays, presets and recordings" width="100%"></p>
 
-## Features
+> Not affiliated with or endorsed by Blackmagic Design. "Blackmagic Camera" is their app; this project only talks
+> to the HTTP API the app offers on your local network, plus Android's standard debugging tools.
 
-- **Live view**: an exact mirror of the phone's viewfinder (grid, focus peaking, zebra and other overlays included) with the phone's microphone sound. Viewport-only or full screen, auto/fixed rotation, four quality presets (capped at 24 fps).
-- **Camera controls**: record, ISO, shutter, auto exposure, white balance and tint, focus (auto/manual/one-shot), lens selection, zoom.
-- **Recording format**: resolution, frame rate, codec (H.265 / H.264 / AV1), off-speed.
-- **Monitoring overlays**: focus assist, zebra, false color, frame guides, grids, safe area, display LUT and clean feed, separately for the phone screen and HDMI out, plus their settings.
-- **Presets**: load, save, update, delete.
-- **Recordings**: list with thumbnails, playback (seekable) and download.
-- **Phone health**: temperature, thermal throttling state, Wi-Fi signal, free storage, battery.
-- **While recording** (optional): turn the phone's screen off (the camera keeps recording; a back gesture on the phone turns it on again) and enable Do Not Disturb.
-- Live updates pushed from the camera (no polling).
+## Get it running
+
+1. **Install [Docker Desktop](https://www.docker.com/products/docker-desktop/)** (macOS, Windows or Linux) and start it.
+2. **Download this project and start it:**
+   ```sh
+   git clone https://github.com/skeplys83/blackmagic-cam-remote.git
+   cd blackmagic-cam-remote
+   ./start.sh              # macOS: or double-click start.command
+   ```
+   On Windows: `docker compose up -d --build`, then open <http://localhost:8080>.
+   No git? Download the ZIP from the green *Code* button instead.
+3. **Follow the setup screen** that opens at <http://localhost:8080>. It checks three things and starts the dashboard
+   as soon as all of them pass:
+   1. **Computer**: everything needed is inside the Docker image, so this is green right away.
+   2. **Wireless debugging** (once per phone):
+      - Phone: *Settings → About phone* → tap *Build number* 7 times (turns on Developer options).
+      - *Settings → System → Developer options → Wireless debugging*: turn it on.
+      - *Pair device with QR code* and scan the code shown on the setup screen. On Docker Desktop for Mac/Windows,
+        enter the phone's IP (shown on the Wireless debugging screen) next to the QR code first. Alternatively use
+        *Pair device with pairing code*.
+      - Phone and computer must be on the same Wi-Fi network.
+   3. **Blackmagic Camera**:
+      - Install it from [Google Play](https://play.google.com/store/apps/details?id=com.blackmagicdesign.android.blackmagiccam).
+      - In the app: *Settings → Network Access* → turn on **Enable HTTP Server**.
+      - Keep the app open in front. If you leave it, the setup screen comes back until you return.
+
+Pairing is remembered, so next time only `./start.sh` (and Wireless debugging on the phone) is needed.
 
 ## Requirements
 
-- An Android 13+ phone with [Blackmagic Camera](https://play.google.com/store/apps/details?id=com.blackmagicdesign.android.blackmagiccam). Developed and tested on a Pixel 10 with Blackmagic Camera 3.5.1.
-- A computer with [Docker](https://www.docker.com/products/docker-desktop/) (macOS, Windows or Linux), on the **same Wi-Fi network** as the phone.
-- A browser with WebCodecs for the live view: Chrome, Edge, or Safari 17+.
+| What | Details |
+|---|---|
+| Phone | Android 13 or newer with Blackmagic Camera. Developed and tested on a Pixel 10 with Blackmagic Camera 3.5.1. |
+| Computer | Docker Desktop (macOS, Windows) or Docker (Linux). Nothing else to install. |
+| Network | Phone and computer on the same Wi-Fi; guest networks that isolate devices won't work. |
+| Browser | A current Chrome, Edge, Safari or Firefox, on a computer, iPad or phone. |
 
-## Quick start
+## How it works
 
-```sh
-git clone https://github.com/skeplys83/blackmagic-cam-remote.git
-cd blackmagic-cam-remote
-./start.sh            # macOS: or double-click start.command
+```
+Browser ──▶ helper (Docker, http://localhost:8080) ──▶ phone over Wi-Fi
+              ├─ Blackmagic Camera's HTTPS API (port 4444): camera controls, live camera state
+              └─ adb over Wireless debugging: live view + sound (scrcpy-server), recordings,
+                 phone health, screen off, Do Not Disturb, setup checks
 ```
 
-On Windows: `docker compose up -d --build`, then open <http://localhost:8080>.
+- The **helper** is a small Python server in the container. The browser only talks to the helper; the helper talks
+  to the phone.
+- **Camera controls** use the app's own HTTP API. Changes made on the phone show up in the dashboard immediately
+  through the app's event stream.
+- The **live view** is an exact mirror of the phone's viewfinder, including grid, focus peaking and other
+  overlays, captured with [scrcpy](https://github.com/Genymobile/scrcpy)'s server component. Sound comes from the
+  phone's microphone.
+- **Recordings** are listed, played and downloaded straight from the phone over adb.
+- The dashboard only runs while the phone is connected and Blackmagic Camera is open in front; otherwise you see
+  the setup screen and the live view stops.
 
-The dashboard opens on a **setup screen** with three checks. It re-checks every couple of seconds and starts the dashboard once all of them pass:
+Details: [docs/architecture/overview.md](docs/architecture/overview.md).
 
-1. **Computer**: Python, adb, scrcpy-server and ffmpeg. All bundled in the Docker image, so this is green automatically.
-2. **Wireless debugging**: the phone connects over Wi-Fi, so it can be anywhere on your network (on a rig, a tripod, a gimbal).
-   - On the phone, turn on Developer options (Settings → About phone → tap *Build number* 7 times).
-   - Open Settings → System → Developer options → **Wireless debugging** and turn it on.
-   - **Pair with QR code**: click *Show pairing QR code* on the setup screen, then on the phone tap *Pair device with QR code* and scan it. Pairing and connecting happen automatically.
-   - **Or pair with a code**: tap *Pair device with pairing code* and enter the shown *IP address & port* and *code* on the setup screen.
-   - If a connection is needed manually, enter the *IP address & port* shown at the top of the Wireless debugging screen into **Connect**. This port changes whenever Wireless debugging restarts; the last one used is tried automatically.
-3. **Blackmagic Camera**
-   - Install the app and open it (the setup screen can open it for you).
-   - In the app: Settings → **Network Access** → turn on **Enable HTTP Server**.
-   - The check confirms the server is listening on port 4444, that it's Blackmagic Camera listening (and not another app holding that port), and that your computer can reach it over Wi-Fi.
+## Features
 
-Pairing keys, settings and thumbnails live in the `bcr-data` Docker volume, so you only pair once.
+- **Live view**: viewfinder only or full screen, rotation (auto or fixed), sound on/off, four stream qualities
+  (24 fps max), red frame and timecode while recording.
+- **Main controls** beside it: record, lens selection, zoom, image stabilization, recording format (resolution,
+  frame rate, codec, off-speed, proxy files), focus (continuous, manual, focus once).
+- **Settings tiles**: exposure (auto/manual, ISO, shutter as speed or angle, false color / zebra), white balance,
+  audio (input and gain per channel), phone (temperature, Wi-Fi, storage, battery; screen off and Do Not Disturb
+  while recording), monitoring overlays for the phone screen and HDMI out, presets, recordings.
+- **Touch friendly**: every control is at least 44 px, so it works well on an iPad.
 
-### QR pairing and where it works
+## Other
 
-QR pairing needs local-network discovery (mDNS) to find the phone after it scans the code:
+### Home server (use it from any device in your network)
 
-| Where the dashboard runs | QR pairing | Code pairing |
-|---|---|---|
-| Docker on **Linux** with host networking ([home server](#home-server-whole-network)) | ✓ | ✓ |
-| **Without Docker** (any OS) | ✓ | ✓ |
-| Docker Desktop on **macOS / Windows** | ✗ (no mDNS inside containers) | ✓ |
-
-Host networking also enables automatic reconnects when Wireless debugging changes its port.
-
-### Home server (whole network)
-
-Run it on an always-on Linux machine in the same network as the phone, and use it from any computer, tablet or phone:
+On an always-on Linux machine in the same network as the phone:
 
 ```sh
 echo "BCR_PASSWORD=choose-a-password" > .env
 docker compose -f compose.server.yaml up -d --build
 ```
 
-Then open `https://<server-ip>:8443`. [`compose.server.yaml`](compose.server.yaml) uses host networking (QR pairing, automatic reconnects), **requires a password**, and serves **HTTPS** with a self-signed certificate created on first start. Your browser warns about it once per device; add the server's name or IP to `BCR_TLS_HOSTS` so the certificate matches, or use your own certificate with `BCR_TLS_CERT` / `BCR_TLS_KEY`.
-
-**Live view and HTTPS**: browsers only allow the fastest live-view decoder (WebCodecs) on secure pages: `https://` or `http://localhost`. On a plain `http://` address the dashboard switches to a fallback that packs the video into MP4 in the browser and plays it with Media Source Extensions: a little more delay, but it works in current Chrome, Edge, Firefox and Safari, including iPhone and iPad. To serve plain HTTP, set `BCR_TLS=` (empty) in `.env`.
+Open `https://<server-ip>:8443` on any device. [`compose.server.yaml`](compose.server.yaml) uses host networking
+(QR pairing without entering the IP, automatic reconnects), **requires a password** and serves **HTTPS** with a
+self-signed certificate (your browser asks to accept it once per device). Add the server's name or IP to
+`BCR_TLS_HOSTS`, or use your own certificate with `BCR_TLS_CERT` / `BCR_TLS_KEY`. Without HTTPS (`BCR_TLS=`) the
+live view still works through a fallback with slightly more delay.
 
 ### Without Docker
 
-You need Python 3.9+ (standard library only), [adb](https://developer.android.com/tools/releases/platform-tools), [scrcpy](https://github.com/Genymobile/scrcpy) (for its `scrcpy-server` file), and optionally ffmpeg (thumbnails) and qrencode (QR pairing). Then:
+Python 3.9+ (standard library only), [adb](https://developer.android.com/tools/releases/platform-tools),
+[scrcpy](https://github.com/Genymobile/scrcpy), optionally ffmpeg (thumbnails) and qrencode (QR pairing):
 
 ```sh
 python3 src/server.py     # then open http://localhost:8080
 ```
 
-`scrcpy-server` is found automatically in Homebrew and common Linux install locations. Otherwise set `SCRCPY_SERVER=/path/to/scrcpy-server` and `SCRCPY_VERSION=<its version>`.
-
-## Configuration
+### Configuration
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `BCR_PHONE` | auto (asked over adb) | The phone's Wi-Fi IP, if detection fails |
-| `BCR_HOST` | `127.0.0.1` (`0.0.0.0` in Docker) | Address the dashboard listens on |
-| `BCR_PORT` | `8080` | Dashboard port |
+| `BCR_PHONE` | asked over adb | The phone's Wi-Fi IP, if detection fails |
+| `BCR_HOST` / `BCR_PORT` | `127.0.0.1` (`0.0.0.0` in Docker) / `8080` | Where the dashboard listens |
 | `BCR_DATA` | `data/` (`/data` in Docker) | Settings, thumbnails, login secret, certificate |
-| `BCR_ALLOWED_HOSTS` | none | Without a password the dashboard only answers to `localhost`; list other names/IPs here (comma-separated) |
-| `BCR_PASSWORD` | none | Require a login (sessions last 30 days; changing it signs everyone out) |
-| `BCR_TLS` | off (`1` in `compose.server.yaml`) | Serve HTTPS; self-signed certificate unless the next two are set |
-| `BCR_TLS_CERT`, `BCR_TLS_KEY` | none | Your own certificate and key (PEM) |
-| `BCR_TLS_HOSTS` | none | Extra names/IPs for the self-signed certificate, comma-separated |
-| `BCR_ADB_NAME`, `BCR_COMPUTER_NAME` | `blackmagic-cam-remote` and this computer's name (via `start.sh`, else `docker`) in Docker; unset otherwise | How the helper appears in the phone's *Paired devices* list: `<name>@<computer>` (no spaces; applies to new pairings) |
+| `BCR_PASSWORD` | none | Require a login (sessions last 30 days) |
+| `BCR_ALLOWED_HOSTS` | none | Without a password only `localhost` is accepted; list other names here |
+| `BCR_TLS`, `BCR_TLS_CERT`, `BCR_TLS_KEY`, `BCR_TLS_HOSTS` | off | HTTPS: self-signed, or your own certificate |
+| `BCR_ADB_NAME`, `BCR_COMPUTER_NAME` | `blackmagic-cam-remote@<computer>` | Name in the phone's *Paired devices* list |
 
-With [`compose.yaml`](compose.yaml) the dashboard is published on `127.0.0.1:8080` only, so other devices can't reach it and no password is needed. Anything reachable from the network should have `BCR_PASSWORD` set; the helper warns at startup if it isn't.
+### Limitations
 
-## Project structure
+- The live view, recordings and phone features need adb (Wireless debugging); the camera API alone has no video.
+- With the screen turned off, the phone stays unlocked and touches still reach the app.
+- Not possible through the app's API: stills while filming, exposure compensation, gain, display brightness,
+  dynamic range.
+- White balance can be set or measured once, but not switched back to continuous auto from the dashboard.
 
-```
-src/
-  server.py                    entry point: options, start-up
-  blackmagic_cam_remote/       the helper (Python standard library only)
-    config.py                  paths, constants, runtime options
-    settings.py                settings kept between runs
-    adb.py                     finding the phone, running adb commands
-    setup.py                   setup-screen checks, QR/code pairing, connect, launch
-    webserver.py               HTTP server and routes (REST proxy, live view, events, …)
-    events.py                  live camera state from the app's event websocket
-    mirror.py                  live view stream (scrcpy-server: screen + microphone)
-    screen.py                  phone screen off/on
-    automation.py              actions when recording starts/stops
-    phone.py                   phone health, rotation, viewfinder position
-    recordings.py              clips: list, playback/download, thumbnails
-    auth.py, tls.py            optional login and HTTPS
-    util.py                    small networking helpers
-  web/
-    index.html, login.html     the dashboard and sign-in pages
-    css/app.css
-    js/                        core, camera, panels, liveview, mse (HTTP fallback), recordings, setup
-```
+### Troubleshooting
 
-## How it works
-
-- **Camera API**: Blackmagic Camera's HTTPS REST API on port 4444 (`/control/api/v1`), and its event WebSocket for live state. The helper proxies both so the browser doesn't have to deal with the phone's self-signed certificate. On Android, the app expects request bodies shaped exactly like its GET responses.
-- **Live view, sound, screen off**: [scrcpy](https://github.com/Genymobile/scrcpy)'s `scrcpy-server`, started over adb. Video is decoded in the browser with WebCodecs (or, on plain http:// pages, repackaged as fragmented MP4 for Media Source Extensions); raw PCM audio plays through Web Audio. Screen off uses scrcpy's display-power control, so only the panel turns off and the camera keeps running.
-- **Recordings, phone health, Do Not Disturb**: adb (`dumpsys`, `cmd wifi`, `cmd notification set_dnd`, …).
-
-## Limitations
-
-- No live video or sound over the REST API alone; adb must be connected.
-- With the screen off, touches still reach the phone, and the back gesture that turns the screen on is also delivered to the app.
-- Screen-off and Do-Not-Disturb automation only run while the helper is running.
-- The phone's screen rotation lock decides the mirrored orientation; use the rotation buttons to override it.
-- Display brightness and dynamic range aren't implemented by the Android app's API.
-
-## Troubleshooting
-
-- **"HTTP server on" fails although it's enabled**: another app may hold port 4444. The check names it; close or uninstall it, then toggle *Enable HTTP Server* off and on.
-- **Phone disconnects after a while**: Wireless debugging got a new port (after a reboot or toggle). With mDNS it reconnects by itself; otherwise enter the new *IP address & port* in **Connect**.
-- **QR code scanned, but nothing happens**: this setup can't see mDNS (Docker Desktop on macOS/Windows). Pair with a code instead.
-- **"Reachable over the network" fails**: the phone and computer are on different networks, or the Wi-Fi isolates clients (common on guest networks).
+- **"HTTP server on" fails**: another app may hold port 4444 (the check names it). Close or uninstall it, then turn
+  *Enable HTTP Server* off and on.
+- **QR code scanned, nothing happens**: on Docker Desktop, enter the phone's IP next to the QR code, or pair with a code.
+- **Phone disconnects after a while**: Wireless debugging got a new port. With host networking it reconnects by
+  itself; otherwise enter the new *IP address & port* under *Connect manually*.
+- **"Reachable over the network" fails**: phone and computer are on different networks, or the Wi-Fi isolates devices.
 - **Live view says another tab took it**: only one live view runs at a time; click *Show it here*.
 
-## Credits
+### Security
 
-- Live view, sound and screen control use [scrcpy](https://github.com/Genymobile/scrcpy) by Genymobile and contributors (Apache-2.0). The Docker image downloads `scrcpy-server` from its official releases and verifies the checksum.
+The default setup is only reachable from your own computer. Paired computers can control the phone while Wireless
+debugging is on, so turn it off when you're not filming and remove old entries under *Paired devices*.
+
+### Development
+
+See [CLAUDE.md](CLAUDE.md) and [docs/](docs/): architecture, the Blackmagic API quirks on Android, the UI design
+system and the development workflow.
+
+### Credits
+
+- Live view, sound and screen control use [scrcpy](https://github.com/Genymobile/scrcpy) by Genymobile and
+  contributors (Apache-2.0). The Docker image downloads `scrcpy-server` from its official releases and verifies
+  the checksum.
 - adb is part of the Android SDK Platform Tools.
 
-## License
+### License
 
 [MIT](LICENSE)
