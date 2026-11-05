@@ -95,22 +95,22 @@ def setup_status():
                     owner = f[7]
             if owner is None:
                 app.append(_check(False, "HTTP server on", f"nothing is listening on port {config.API_PORT}",
-                                  "In Blackmagic Camera: Settings → Network Access → turn on Enable HTTP Server."))
+                                  "In Blackmagic Camera: Settings → Network Access → turn on Enable HTTP Server.", id="http-server"))
             elif owner != uid:
                 name = adb("shell", f"cmd package list packages -U | grep 'uid:{owner}$'", timeout=10).stdout.decode().strip()
                 name = name.split()[0].replace("package:", "") if name else f"uid {owner}"
                 app.append(_check(False, "HTTP server on", f"port {config.API_PORT} is taken by another app: {name}",
-                                  f"Close or uninstall {name}, then turn Enable HTTP Server off and on in Blackmagic Camera."))
+                                  f"Close or uninstall {name}, then turn Enable HTTP Server off and on in Blackmagic Camera.", id="http-server"))
             else:
-                app.append(_check(True, "HTTP server on", f"port {config.API_PORT}"))
+                app.append(_check(True, "HTTP server on", f"port {config.API_PORT}", id="http-server"))
                 try:
                     host = phone_host()
                     with urllib.request.urlopen(f"https://{host}:{config.API_PORT}/control/api/v1/system", context=config.PHONE_SSL, timeout=4):
                         pass
-                    app.append(_check(True, "Reachable over the network", f"https://{host}:{config.API_PORT}"))
+                    app.append(_check(True, "Reachable over the network", f"https://{host}:{config.API_PORT}", id="reachable"))
                 except Exception as e:
                     app.append(_check(False, "Reachable over the network", f"can't reach the phone's API ({e})",
-                                      "Put the phone and this computer on the same Wi-Fi network; guest networks often block devices from talking to each other."))
+                                      "Put the phone and this computer on the same Wi-Fi network; guest networks often block devices from talking to each other.", id="reachable"))
     else:
         app.append(_check(False, "Blackmagic Camera", "connect the phone first"))
 

@@ -40,6 +40,28 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if self.command != "HEAD":
             self.wfile.write(body)
 
+    # ---- protection against other websites (DNS rebinding, cross-site requests) ----
+
+    def _host_ok(self):
+        """Without a login, only answer requests addressed to this computer by name (blocks DNS rebinding)."""
+        if auth.PASSWORD:
+            return True  # a rebound name never gets the session cookie
+        host = (self.headers.get("Host") or "").strip().lower()
+        host = host[1:host.index("]")] if host.startswith("[") else host.rsplit(":", 1)[0]
+        return host in ("localhost", "127.0.0.1", "::1") or host in config.ALLOWED_HOSTS
+
+    def _cross_site(self):
+        """True if the request was made by a page from another site."""
+        if self.headers.get("Sec-Fetch-Site") in ("cross-site", "same-site"):
+            return True
+        origin = self.headers.get("Origin")
+        if origin is None:
+            return False  # not sent by a browser page (curl, ffmpeg, the health check)
+        return origin == "null" or urllib.parse.urlparse(origin).netloc.lower() != (self.headers.get("Host") or "").lower()
+
+    def _reject(self, why):
+        self._send(403, json.dumps({"error": why}).encode())
+
     def _authorized(self):
         if not auth.PASSWORD:
             return True
@@ -165,6 +187,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
         u = urllib.parse.urlparse(self.path)
         q = urllib.parse.parse_qs(u.query)
+        if not self._host_ok():
+            return self._reject("unknown host name; add it to BCR_ALLOWED_HOSTS or set BCR_PASSWORD")
+        # Other sites may link to the dashboard, but not embed or fetch its content (live view, recordings, …).
+        if self._cross_site() and self.headers.get("Sec-Fetch-Mode", "navigate") != "navigate":
+            return self._reject("cross-site request")
         if u.path == "/login":
             return self._login_page() if auth.PASSWORD else self._send(303, b"", "text/plain", [("Location", "/")])
         if u.path == "/logout":
@@ -281,6 +308,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self._send(404, b"not found", "text/plain")
 
     def _write(self):
+        if not self._host_ok():
+            return self._reject("unknown host name; add it to BCR_ALLOWED_HOSTS or set BCR_PASSWORD")
+        if self._cross_site():
+            return self._reject("cross-site request")
+        length = int(self.headers.get("Content-Length") or 0)
+        if self.path != "/login" and length and not (self.headers.get("Content-Type") or "").startswith("application/json"):
+            return self._reject("send JSON")
         if self.path == "/login" and self.command == "POST":
             return self._login()
         if not self._authorized():

@@ -9,6 +9,7 @@ Environment:
   BCR_PORT       dashboard port (default 8080)
   BCR_DATA       settings, cache, login secret and certificate (default ./data)
   BCR_PASSWORD   require a login
+  BCR_ALLOWED_HOSTS  extra host names to answer to without a login (default: localhost only)
   BCR_TLS=1      serve HTTPS (self-signed unless BCR_TLS_CERT and BCR_TLS_KEY are set)
   BCR_TLS_HOSTS  extra names/IPs for the self-signed certificate, comma-separated
   BCR_ADB_NAME   how this helper is listed in the phone's Paired devices ("<name>@<computer>"; set in Docker)

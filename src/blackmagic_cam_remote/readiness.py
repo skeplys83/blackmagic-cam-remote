@@ -4,7 +4,9 @@ Nothing here polls the phone quickly:
   - adb connection: adb's own device-tracking stream (host:track-devices-l) reports every change at once.
   - app in front:   a logcat stream of Android's "top resumed activity" events; each event triggers one exact
                     foreground query. A slow re-check (every few seconds) catches anything an event missed.
-  - everything else (tools, app installed, HTTP server, network): setup_status() every 10 s and right after
+  - the app's HTTP API: probed directly over Wi-Fi (no adb): every 0.3 s while the app is in front but its
+                    server isn't answering yet (it restarts ~2 s after the app comes back), otherwise every 2 s.
+  - everything else (tools, app installed, port owner, network): setup_status() every 10 s and right after
     any change above.
 The combined state is what /setup and /setup/events return, and what decides setup screen vs. dashboard.
 """
@@ -13,8 +15,10 @@ import socket
 import subprocess
 import threading
 import time
+import urllib.request
 
-from . import config
+from . import config, events
+from .adb import phone_host
 from .setup import _check, foreground_app, setup_status
 from .util import recv_exact
 
@@ -28,12 +32,13 @@ class Readiness:
         self.lock = threading.Lock()
         self.devices = []          # [{"serial", "state", "model"}] from adb's tracking stream
         self.in_front = None       # True/False once known for the connected phone
+        self.api_up = None         # True/False: does the app's HTTP API answer right now?
         self.full = None           # last setup_status() result
         self.clients = []
         self.state = None
         self.recheck = threading.Event()
         self.watching = None       # serial whose foreground is being watched
-        for target in (self._track_devices, self._full_checks, self._foreground_recheck):
+        for target in (self._track_devices, self._full_checks, self._foreground_recheck, self._api_probe):
             threading.Thread(target=target, daemon=True).start()
 
     # ---- subscribers (Server-Sent Events) ----
@@ -87,6 +92,13 @@ class Readiness:
                         c.update(ok=self.in_front, detail="in front on the phone" if self.in_front else "not in front",
                                  fix=None if self.in_front else "Bring Blackmagic Camera to the front on the phone (or use the button below). "
                                                                 "The dashboard only runs while the app is open in front.")
+            if dev and self.api_up is not None:  # the live API probe beats the last full check
+                for c in groups["app"]:
+                    if c.get("id") in ("http-server", "reachable") and self.api_up:
+                        c.update(ok=True, fix=None, detail="answering" if c["id"] == "reachable" else f"port {config.API_PORT}")
+                    elif c.get("id") == "reachable" and not self.api_up:
+                        c.update(ok=False, detail="not answering",
+                                 fix="Wait a moment after opening Blackmagic Camera; if it stays like this, check Enable HTTP Server.")
             ready = all(c["ok"] or c["optional"] for g in groups.values() for c in g)
             state = {"ready": ready, "groups": groups, "devices": list(self.devices), "updated": time.time(),
                      "live": {"connected": bool(dev), "model": dev["model"] if dev else None,
@@ -192,6 +204,33 @@ class Readiness:
                 dev = self._ready_device()
             if dev:
                 self._query_foreground()
+
+    # ---- the app's HTTP API: direct probe ----
+
+    def _api_probe(self):
+        while True:
+            with self.lock:
+                dev, front, was = self._ready_device(), self.in_front, self.api_up
+            if not dev:
+                if was is not None:
+                    with self.lock:
+                        self.api_up = None
+                time.sleep(0.5)
+                continue
+            try:
+                url = f"https://{phone_host()}:{config.API_PORT}/control/api/v1/system"
+                with urllib.request.urlopen(url, context=config.PHONE_SSL, timeout=1):
+                    up = True
+            except Exception:
+                up = False
+            if up != was:
+                with self.lock:
+                    self.api_up = up
+                self._publish()
+                self.recheck.set()
+                if up and events.hub:
+                    events.hub.wake()  # reconnect the live camera state right away
+            time.sleep(0.3 if front and not up else 2)
 
     # ---- everything else ----
 

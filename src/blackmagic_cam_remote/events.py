@@ -6,7 +6,6 @@ import queue
 import socket
 import struct
 import threading
-import time
 import urllib.request
 
 from . import config
@@ -23,7 +22,12 @@ class EventHub:
         self.clients = []
         self.lock = threading.Lock()
         self.connected = False
+        self.retry = threading.Event()
         threading.Thread(target=self._run, daemon=True).start()
+
+    def wake(self):
+        """Retry the websocket now (e.g. the app's API just came back)."""
+        self.retry.set()
 
     def subscribe(self):
         q = queue.Queue(maxsize=2000)
@@ -61,7 +65,8 @@ class EventHub:
                 if self.connected:
                     print("events: websocket closed:", e)
             self._status(False)
-            time.sleep(3)
+            self.retry.wait(1)
+            self.retry.clear()
 
     def _session(self):
         host = phone_host()

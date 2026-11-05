@@ -91,6 +91,7 @@ python3 src/server.py     # then open http://localhost:8080
 | `BCR_HOST` | `127.0.0.1` (`0.0.0.0` in Docker) | Address the dashboard listens on |
 | `BCR_PORT` | `8080` | Dashboard port |
 | `BCR_DATA` | `data/` (`/data` in Docker) | Settings, thumbnails, login secret, certificate |
+| `BCR_ALLOWED_HOSTS` | none | Without a password the dashboard only answers to `localhost`; list other names/IPs here (comma-separated) |
 | `BCR_PASSWORD` | none | Require a login (sessions last 30 days; changing it signs everyone out) |
 | `BCR_TLS` | off (`1` in `compose.server.yaml`) | Serve HTTPS; self-signed certificate unless the next two are set |
 | `BCR_TLS_CERT`, `BCR_TLS_KEY` | none | Your own certificate and key (PEM) |

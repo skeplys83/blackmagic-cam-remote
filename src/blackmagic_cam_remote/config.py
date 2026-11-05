@@ -22,3 +22,6 @@ PHONE_SSL.verify_mode = ssl.CERT_NONE
 PHONE = ""   # phone IP override (BCR_PHONE); empty = ask the phone over adb
 PORT = 8080  # dashboard port
 TLS = None   # ssl.SSLContext when the dashboard serves HTTPS
+
+# Extra host names the dashboard answers to without a password (besides localhost); see webserver._host_ok.
+ALLOWED_HOSTS = {h.strip().lower() for h in os.environ.get("BCR_ALLOWED_HOSTS", "").split(",") if h.strip()}
