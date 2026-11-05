@@ -1,7 +1,8 @@
 # Development workflow
 
 ## Run
-- **Docker (normal):** `./start.sh` → http://localhost:8080. Python changes need `docker compose up -d --build`.
+- **Docker from source:** `./start.sh --build` → http://localhost:8080. Python changes need
+  `docker compose -f compose.yaml -f compose.build.yaml up -d --build` (plain `./start.sh` uses the published image).
   Page-only changes: `docker cp src/web/. blackmagic-cam-remote:/app/web/` and reload the tab (rebuild before committing).
 - **Without Docker:** `python3 src/server.py --port 8091` with adb, scrcpy and (optionally) ffmpeg/qrencode installed.
   Data goes to `./data` (or `BCR_DATA`). This uses the host's own adb key and server.
@@ -40,5 +41,6 @@ git grep -n -i -E '<your phone ip>|<adb serial>|<wifi name>|@gmail|/Users/' -- .
 
 ## Commits and releases
 - Small, focused commits with a summary line and a short "why". Push to `main` on GitHub.
-- The image is built locally from the Dockerfile; `scrcpy-server` is downloaded and checksum-verified at build.
-  Bump `SCRCPY_VERSION`/`SCRCPY_SHA256` together.
+- Every push to `main` builds and publishes `ghcr.io/skeplys83/blackmagic-cam-remote:latest` (amd64 + arm64)
+  via `.github/workflows/docker-image.yml`. A tag `vX.Y.Z` publishes `:X.Y.Z`, `:X.Y`, `:X`.
+- `scrcpy-server` is downloaded and checksum-verified at build. Bump `SCRCPY_VERSION`/`SCRCPY_SHA256` together.

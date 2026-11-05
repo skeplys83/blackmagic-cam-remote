@@ -1,11 +1,11 @@
 # Home server / whole local network (Linux host). Usage:
 #   echo "BCR_PASSWORD=choose-a-password" > .env
-#   docker compose -f compose.server.yaml up -d --build
+#   docker compose -f compose.server.yaml up -d
 # Then open https://<server-ip>:8443 on any device in your network.
+name: blackmagic-cam-remote
 services:
   blackmagic-cam-remote:
-    build: .
-    image: blackmagic-cam-remote
+    image: ghcr.io/skeplys83/blackmagic-cam-remote:${BCR_VERSION:-latest}
     container_name: blackmagic-cam-remote
     restart: unless-stopped
     network_mode: host          # mDNS: QR pairing and automatic reconnects

@@ -1,0 +1,8 @@
+# Build the image from this source tree instead of pulling the published one:
+#   docker compose -f compose.yaml -f compose.build.yaml up -d --build
+#   (./start.sh --build does the same)
+name: blackmagic-cam-remote
+services:
+  blackmagic-cam-remote:
+    image: blackmagic-cam-remote:dev
+    build: .

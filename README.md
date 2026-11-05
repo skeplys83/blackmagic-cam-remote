@@ -13,14 +13,17 @@ live view with overlays and sound, camera controls, recording format, presets, r
 ## Get it running
 
 1. **Install [Docker Desktop](https://www.docker.com/products/docker-desktop/)** (macOS, Windows or Linux) and start it.
-2. **Download this project and start it:**
+2. **Start it**: one file, one command, using the ready-made image (Intel/AMD and Apple Silicon/ARM):
    ```sh
-   git clone https://github.com/skeplys83/blackmagic-cam-remote.git
-   cd blackmagic-cam-remote
-   ./start.sh              # macOS: or double-click start.command
+   mkdir blackmagic-cam-remote && cd blackmagic-cam-remote
+   curl -fsSLO https://raw.githubusercontent.com/skeplys83/blackmagic-cam-remote/main/compose.yaml
+   docker compose up -d
    ```
-   On Windows: `docker compose up -d --build`, then open <http://localhost:8080>.
-   No git? Download the ZIP from the green *Code* button instead.
+   Then open <http://localhost:8080>. (Windows PowerShell: use `curl.exe` instead of `curl`.)
+   To update later: `docker compose pull && docker compose up -d`. To stop: `docker compose down`.
+
+   Prefer the full project? `git clone https://github.com/skeplys83/blackmagic-cam-remote.git`, then `./start.sh`
+   (macOS: or double-click `start.command`).
 3. **Follow the setup screen** that opens at <http://localhost:8080>. It checks three things and starts the dashboard
    as soon as all of them pass:
    1. **Computer**: everything needed is inside the Docker image, so this is green right away.
@@ -36,14 +39,15 @@ live view with overlays and sound, camera controls, recording format, presets, r
       - In the app: *Settings → Network Access* → turn on **Enable HTTP Server**.
       - Keep the app open in front. If you leave it, the setup screen comes back until you return.
 
-Pairing is remembered, so next time only `./start.sh` (and Wireless debugging on the phone) is needed.
+Pairing is remembered (in the Docker volume `blackmagic-cam-remote_bcr-data`), so next time only
+`docker compose up -d` (and Wireless debugging on the phone) is needed.
 
 ## Requirements
 
 | What | Details |
 |---|---|
 | Phone | Android 13 or newer with Blackmagic Camera. Developed and tested on a Pixel 10 with Blackmagic Camera 3.5.1. |
-| Computer | Docker Desktop (macOS, Windows) or Docker (Linux). Nothing else to install. |
+| Computer | Docker Desktop (macOS, Windows) or Docker (Linux), on Intel/AMD or ARM (Apple Silicon, Raspberry Pi 4/5). Nothing else to install. |
 | Network | Phone and computer on the same Wi-Fi; guest networks that isolate devices won't work. |
 | Browser | A current Chrome, Edge, Safari or Firefox, on a computer, iPad or phone. |
 
@@ -87,8 +91,9 @@ Details: [docs/architecture/overview.md](docs/architecture/overview.md).
 On an always-on Linux machine in the same network as the phone:
 
 ```sh
+curl -fsSLO https://raw.githubusercontent.com/skeplys83/blackmagic-cam-remote/main/compose.server.yaml
 echo "BCR_PASSWORD=choose-a-password" > .env
-docker compose -f compose.server.yaml up -d --build
+docker compose -f compose.server.yaml up -d
 ```
 
 Open `https://<server-ip>:8443` on any device. [`compose.server.yaml`](compose.server.yaml) uses host networking
@@ -96,6 +101,11 @@ Open `https://<server-ip>:8443` on any device. [`compose.server.yaml`](compose.s
 self-signed certificate (your browser asks to accept it once per device). Add the server's name or IP to
 `BCR_TLS_HOSTS`, or use your own certificate with `BCR_TLS_CERT` / `BCR_TLS_KEY`. Without HTTPS (`BCR_TLS=`) the
 live view still works through a fallback with slightly more delay.
+
+### Build the image yourself
+
+`./start.sh --build`, or `docker compose -f compose.yaml -f compose.build.yaml up -d --build`.
+Pin a released version with `BCR_VERSION=1.0.0 docker compose up -d`.
 
 ### Without Docker
 

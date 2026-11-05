@@ -20,9 +20,11 @@ Android app (live view, camera controls, recordings, phone health) through the a
 src/server.py                 entry point only (options, wiring, start)
 src/blackmagic_cam_remote/    the helper: one module per concern, Python standard library only
 src/web/                      the page: index.html, login.html, css/app.css, js/*.js (no build step), img/
-Dockerfile, compose.yaml      local use (dashboard on 127.0.0.1:8080, no password)
+Dockerfile                    the image (built by .github/workflows/docker-image.yml → ghcr.io)
+compose.yaml                  local use with the published image (127.0.0.1:8080, no password)
 compose.server.yaml           home server (host networking, password required, HTTPS on 8443)
-start.sh / start.command      launcher: checks Docker, builds, starts, opens the browser
+compose.build.yaml            override: build from this source tree instead of pulling
+start.sh / start.command      launcher: checks Docker, pulls (or --build), starts, opens the browser
 ```
 
 ## Ground rules
@@ -43,8 +45,8 @@ start.sh / start.command      launcher: checks Docker, builds, starts, opens the
 ## Common commands
 
 ```sh
-./start.sh                                   # build + start the container, open http://localhost:8080
-docker compose up -d --build                 # rebuild after Python changes
+./start.sh --build                           # build from source + start, open http://localhost:8080
+docker compose -f compose.yaml -f compose.build.yaml up -d --build   # rebuild after Python changes
 docker cp src/web/. blackmagic-cam-remote:/app/web/   # try page changes without a rebuild (reload the tab)
 python3 src/server.py --port 8091            # run without Docker (needs adb + scrcpy on the host)
 docker exec blackmagic-cam-remote adb devices          # the container's adb

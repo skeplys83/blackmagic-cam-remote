@@ -1,7 +1,9 @@
+# Run the published image:  docker compose up -d   (then open http://localhost:8080)
+# Build from source instead: docker compose -f compose.yaml -f compose.build.yaml up -d --build
+name: blackmagic-cam-remote   # fixed project name: same volume wherever this file lives
 services:
   blackmagic-cam-remote:
-    build: .
-    image: blackmagic-cam-remote
+    image: ghcr.io/skeplys83/blackmagic-cam-remote:${BCR_VERSION:-latest}
     container_name: blackmagic-cam-remote
     restart: unless-stopped
     ports:

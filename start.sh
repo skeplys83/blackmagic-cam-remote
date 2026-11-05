@@ -1,5 +1,7 @@
 #!/bin/sh
 # Start Blackmagic Cam Remote in Docker and open the dashboard.
+#   ./start.sh          use the published image (downloads updates)
+#   ./start.sh --build  build the image from this source tree
 set -e
 cd "$(dirname "$0")"
 URL=http://localhost:8080
@@ -15,7 +17,12 @@ fi
 
 # Shown on the phone (Wireless debugging → Paired devices) as blackmagic-cam-remote@<this computer>.
 export BCR_COMPUTER_NAME="${BCR_COMPUTER_NAME:-$(hostname -s 2>/dev/null || echo docker)}"
-docker compose up -d --build
+if [ "$1" = "--build" ]; then
+  docker compose -f compose.yaml -f compose.build.yaml up -d --build
+else
+  docker compose pull
+  docker compose up -d
+fi
 
 printf "Waiting for the dashboard"
 i=0
