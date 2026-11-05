@@ -155,7 +155,7 @@ function slider(id, out, fmt, push) {
 }
 slider('wb', 'wbOut', v => v + ' K', v => send('video/whiteBalance', 'PUT', { whiteBalance: v, tint: state.tint ?? 0 }, 'White balance'));
 slider('tint', 'tintOut', v => v, v => send('video/whiteBalanceTint', 'PUT', { whiteBalanceTint: v }, 'Tint'));
-slider('focus', 'focusOut', v => Math.round(v * 100) + '%', v => send('lens/focus', 'PUT', { focusDistance: state.focusDistance ?? 0, normalized: v, normalised: v, speed: null }, 'Focus'));
+slider('focus', 'focusOut', v => Math.round(v * 100) + '%', v => send('lens/focus', 'PUT', { normalized: v }, 'Focus')); // only normalized: the app uses focusDistance instead if both are sent
 slider('zoom', 'zoomOut', v => {
   const z = $('zoom'); const mn = +z.dataset.min || 0, mx = +z.dataset.max || 1;
   return Math.round(mn + (mx - mn) * v) + ' mm';
