@@ -62,5 +62,10 @@ but the Android implementation differs from them in many places. **Check here fi
 - Do Not Disturb: `cmd notification set_dnd priority|off`; state `settings get global zen_mode`.
 - Clips: `/sdcard/DCIM/Blackmagic Camera`. Delete through the media store so the gallery stays in sync:
   `content delete --uri content://media/external/file/<id>` (no output; check the file is gone).
+- Debian's adb (in the image) is built **without mDNS**: `adb mdns check/services` print nothing. `mdns.py` queries
+  `_adb-tls-pairing._tcp.local` / `_adb-tls-connect._tcp.local` itself. Send on the LAN interface explicitly
+  (`IP_MULTICAST_IF`), and ask both ways: a normal query from port 5353 (answers go to the group) and a direct
+  ("QU") query from its own port; on a shared port 5353 a direct answer can go to avahi/mDNSResponder instead.
+  Google's platform-tools adb has mDNS but may not be redistributed in the image (Android SDK license).
 - Pairing name on the phone is `"<LOGNAME>@<HOSTNAME>"` of the adb server process (not the key comment); Android
   cuts it at the first space.

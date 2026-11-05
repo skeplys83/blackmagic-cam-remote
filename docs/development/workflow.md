@@ -38,6 +38,8 @@ git grep -n -i -E '<your phone ip>|<adb serial>|<wifi name>|@gmail|/Users/' -- .
 - scrcpy-server deletes its jar after start (cleanup) → push it on every start.
 - Docker Desktop's network layer drops floods of connections; keep port scans at ≤400 concurrent probes.
 - adb's pairing name comes from `LOGNAME@HOSTNAME`; set before the adb server starts.
+- The image's (Debian) adb has no mDNS: test QR pairing / reconnects on a Linux host with host networking;
+  Docker Desktop never sees multicast. Don't swap in Google's adb (license forbids redistributing it).
 
 ## Commits and releases
 - Small, focused commits with a summary line and a short "why". Push to `main` on GitHub.

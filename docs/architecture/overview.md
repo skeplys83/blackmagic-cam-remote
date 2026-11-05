@@ -28,6 +28,7 @@
 | `settings.py` | Persisted settings (`data/settings.json`): automation toggles, last phone address/IP |
 | `adb.py` | Finding/reconnecting the phone (`adb_serial`), `adb()` wrapper, phone IP, scrcpy-server location, pairing identity |
 | `util.py` | `recv_exact`, `free_port` |
+| `mdns.py` | Own mDNS/DNS-SD query for the phone's `_adb-tls-pairing` / `_adb-tls-connect` services (Debian's adb in the image has no mDNS) |
 | `readiness.py` | Live setup state: device tracking, foreground app (logcat events), API probe, periodic full checks; pushed via `/events` |
 | `setup.py` | The checks (`setup_status`), QR/code pairing, connect, launch app |
 | `webserver.py` | HTTP server and routes, host/origin checks, login, static files, SSE, live-view relay, clip ranges |
@@ -83,7 +84,7 @@ the new viewfinder area and confirms it once the app's layout matches.
 
 ### QR pairing
 The QR encodes `WIFI:T:ADB;S:<name>;P:<password>;;`. The phone then opens a pairing port. The helper finds it via
-mDNS (`_adb-tls-pairing._tcp` named `<name>`) or, without mDNS, by scanning the phone's IP (32768–49999 first,
+mDNS (`_adb-tls-pairing._tcp` named `<name>`, through `mdns.py` since the image's adb has no mDNS) or, without mDNS, by scanning the phone's IP (32768–49999 first,
 400 probes at a time) and trying `adb pair` on each newly found port. The scan stops when the attempt ends.
 
 ## Security model

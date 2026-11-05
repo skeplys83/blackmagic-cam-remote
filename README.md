@@ -141,7 +141,9 @@ python3 src/server.py     # then open http://localhost:8080
 
 - **"HTTP server on" fails**: another app may hold port 4444 (the check names it). Close or uninstall it, then turn
   *Enable HTTP Server* off and on.
-- **QR code scanned, nothing happens**: on Docker Desktop, enter the phone's IP next to the QR code, or pair with a code.
+- **QR code scanned, nothing happens**: on Docker Desktop (no multicast in containers), enter the phone's IP next to
+  the QR code, or pair with a code. On Linux with `compose.server.yaml` it works without the IP; if not, check that
+  the host's firewall allows mDNS (UDP 5353).
 - **Phone disconnects after a while**: Wireless debugging got a new port. With host networking it reconnects by
   itself; otherwise enter the new *IP address & port* under *Connect manually*.
 - **"Reachable over the network" fails**: phone and computer are on different networks, or the Wi-Fi isolates devices.

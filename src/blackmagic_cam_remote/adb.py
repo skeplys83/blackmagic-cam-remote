@@ -5,7 +5,7 @@ import re
 import subprocess
 import threading
 
-from . import config
+from . import config, mdns
 from .settings import settings
 
 
@@ -21,10 +21,8 @@ def adb_serial():
         if _serial in devices:
             return _serial
         if not devices:
-            mdns = subprocess.run(["adb", "mdns", "services"], capture_output=True, text=True).stdout
-            for line in mdns.splitlines():
-                parts = line.split()
-                if len(parts) >= 3 and parts[1] == "_adb-tls-connect._tcp":
+            for parts in mdns_services():
+                if parts[1] == "_adb-tls-connect._tcp":
                     subprocess.run(["adb", "connect", parts[2]], capture_output=True, timeout=10)
             out = subprocess.run(["adb", "devices"], capture_output=True, text=True).stdout
             devices = [l.split("\t")[0] for l in out.splitlines()[1:] if l.endswith("\tdevice")]
@@ -85,5 +83,16 @@ def scrcpy_server():
     raise RuntimeError("scrcpy-server not found (install scrcpy or use the Docker image)")
 
 def mdns_services():
+    """Wireless debugging services seen on the network: [[instance, service, "ip:port"], ...].
+
+    adb's own mDNS (Google's adb has it; Debian's, used in the Docker image, doesn't) plus our own query
+    (mdns.py), which also works with Debian's adb wherever multicast reaches the helper.
+    """
     out = subprocess.run(["adb", "mdns", "services"], capture_output=True, text=True, timeout=10).stdout
-    return [line.split() for line in out.splitlines() if "._tcp" in line and len(line.split()) >= 3]
+    found = [line.split() for line in out.splitlines() if "._tcp" in line and len(line.split()) >= 3]
+    near = settings.get("phoneIp") or (settings.get("lastAddress") or "").rpartition(":")[0] or None
+    seen = {(f[1], f[2]) for f in found}
+    for instance, service, addr in mdns.browse(near=near):
+        if (service, addr) not in seen:
+            found.append([instance, service, addr])
+    return found
