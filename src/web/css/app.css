@@ -7,8 +7,8 @@
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
 body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.4 -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif; }
-/* Page: phone info as a sidebar on the left, everything else to its right. */
-.wrap { max-width: 1760px; margin: 0 auto; padding: 16px; display: grid; grid-template-columns: max-content minmax(0, 1fr); column-gap: 12px; align-items: start; }
+/* Page: phone info as a sidebar on the left, everything else to its right; full window width (no max width) with the usual 16px gutter. */
+.wrap { padding: 16px; display: grid; grid-template-columns: max-content minmax(0, 1fr); column-gap: 12px; align-items: start; }
 .wrap > .sidebar { grid-column: 1; grid-row: 1 / span 20; }
 .wrap > :not(.sidebar) { grid-column: 2; }
 /* Sidebar: the app icon, then the phone info box; both as narrow as the box's content. */
