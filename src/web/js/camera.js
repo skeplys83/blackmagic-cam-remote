@@ -127,7 +127,7 @@ function render() {
     if (act) { setSeg('lenses', act.id); $('lensNow').textContent = `${act.facing === 'front' ? 'Front' : act.zoomFactor} · ${act.focalLength}mm`; }
   }
 
-  renderFormat(); renderMonitoring(); renderPresets(); renderQuick(); renderAudio();
+  renderFormat(); renderMonitoring(); renderPresets(); renderQuick(); renderAudio(); renderProfile();
 }
 
 // ---------- controls ----------

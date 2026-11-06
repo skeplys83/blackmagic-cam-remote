@@ -97,7 +97,7 @@ COLOR_SPACES = {1: (0, "Rec.709"), 2: (1, "HLG10 (BT.2020)")}
 _supported = None  # profile codes all cameras support, read once per connection
 
 
-def _dumpsys_camera(pattern, extra=""):
+def _dumpsys_camera(pattern, extra=""):  # static info (capabilities) only
     r = adb("shell", f"dumpsys media.camera | grep {extra} -E '{pattern}'", timeout=10)
     return r.stdout.decode(errors="replace")
 
@@ -117,8 +117,14 @@ def supported_profiles():
 
 
 def current_profile():
-    """The active camera stream's dynamic range profile, or None while no camera is open."""
-    m = re.search(r"Dynamic Range Profile: 0x([0-9a-fA-F]+)", _dumpsys_camera("Dynamic Range Profile", "-m1"))
+    """The open camera's stream dynamic range profile, or None while no camera is open.
+
+    Only the live "Camera device N dynamic info" sections count: the same lines also appear in old snapshots under
+    "Camera error traces". The camera is closed while the app shows its own settings or another screen.
+    """
+    out = adb("shell", "dumpsys media.camera | sed -n '/^== Camera device [0-9]* dynamic info/,/^== Camera Provider/p'",
+              timeout=10).stdout.decode(errors="replace")
+    m = re.search(r"Dynamic Range Profile: 0x([0-9a-fA-F]+)", out)
     return int(m.group(1), 16) if m else None
 
 
@@ -142,6 +148,8 @@ def set_color_space(label):
     def done():
         return color_space_state() if current_profile() == profile else None
 
+    if current_profile() is None:
+        raise RuntimeError("Blackmagic Camera isn't showing its camera view (camera closed); go back to it first")
     state = _apply(change, done, "color space")
     _publish(state)
     return state

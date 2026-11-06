@@ -49,7 +49,7 @@ but the Android implementation differs from them in many places. **Check here fi
 | `/system/audioCodec` | Read only (AAC) |
 | `GET/PUT/DELETE /presets/{name}.bmcpreset` | PUT saves the current state; GET returns JSON (`appsettings` incl. `resolutionSize` "WxH", `isOpenGate`) |
 | `POST /presets` | Raw file, `Content-Type: application/octet-stream`, `Content-Disposition: attachment; filename="x.bmcpreset"`. Stored **without** the extension (`presetAdded`). Uploading does not apply it |
-| `PUT /presets/active` | `{"preset": "<stored name>"}` applies all settings, including resolution |
+| `PUT /presets/active` | `{"preset": "<stored name>"}` applies all settings, including resolution and lens. A preset saved with `PUT /presets/x.bmcpreset` is stored as `x.bmcpreset` (with extension), an uploaded one as `x` |
 | `PUT /monitoring/Device/{zebra,focusAssist,falseColor,frameGuide,frameGrids,safeArea,displayLUT}` | `{"enabled": bool}`; `cleanFeed` only on `HDMI` |
 | `PUT /monitoring/focusAssist` | `{"mode": "Peak"|"ColoredLines", "color", "intensity": 1..100}` |
 | `PUT /monitoring/zebra` | `{"highlight": {"level": 75..100 step 5, "enabled"}, "skinTone": null}` |
@@ -72,7 +72,9 @@ but the Android implementation differs from them in many places. **Check here fi
 - What the phone supports: `dumpsys media.camera`, `android.request.availableDynamicRangeProfilesMap` per camera
   (triples of profile, compatible profiles, latency; profile 2 = HLG10, 4 = HDR10, 8 = HDR10+), plus standard (1).
   The app's own menu matches it (Pixel 10: Rec.709 and BT2020 HLG10, with H.265).
-- Current value: the active stream's `Dynamic Range Profile: 0x1` (standard) / `0x2` (HLG10) in the same dump.
+- Current value: `Dynamic Range Profile: 0x1` (standard) / `0x2` (HLG10) of the open camera's streams, in the
+  `== Camera device N dynamic info ==` sections only. The same lines appear in old snapshots under
+  `== Camera error traces ==`. No camera is open while the app shows its Settings (or any other) screen.
 
 ## Other phones
 Only a Pixel 10 has been tested. The page takes device-specific values from the app wherever it reports them:
@@ -87,6 +89,8 @@ channel, signaling over a websocket) also has the stabilization mode and exposur
 would need a WebRTC stack (no standard-library option).
 
 ## adb facts used by the helper
+- Per-lens hardware: `dumpsys media.camera` static info, one block per logical camera (`internal/N`) and per
+  physical lens (`Physical camera K characteristics`); the app's lens ids are these camera ids on a Pixel 10.
 - Display rotation: `dumpsys display | grep -m1 -o 'orientation=[0-9]'`.
 - Foreground app: `dumpsys activity activities | grep topResumedActivity=`; live events via
   `logcat -b events` tags `wm_on_top_resumed_gained_called` / `_lost_called`.

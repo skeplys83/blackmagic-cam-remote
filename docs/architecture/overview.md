@@ -38,6 +38,7 @@
 | `automation.py` | On record start/stop: screen off, Do Not Disturb |
 | `phone.py` | Phone health (battery, temperature, Wi-Fi, storage), rotation, viewfinder position (UI dump) |
 | `recordings.py` | Clip list (folder + durations from the app's `/clips`), byte-range reads, ffmpeg thumbnails (cached in `data/cache`), delete via the media store |
+| `profile.py` | The phone profile (`data/profiles/<maker>_<model>_<app version>.json`): hardware per lens from Android, what the app offers per lens (learned while active, or by a scan), published as `@profile` |
 | `recformat.py` | Resolution and color space changes via a temporary preset; color space options/current value from `dumpsys media.camera`, published as `@colorSpace` |
 | `auth.py`, `tls.py` | Optional password login (signed cookie), optional HTTPS (self-signed or own cert) |
 
@@ -86,6 +87,15 @@ Not in the REST API. `recformat.py` lists only the profiles every camera of the 
 range profiles, plus Rec.709) and reads the active one from `dumpsys media.camera` every 3 s, published as the
 pseudo-property `@colorSpace` on `/events`. `POST /format/colorspace` applies a change through the temporary preset
 and waits until the camera stream reports it. Unsupported profiles can crash the app (see the API doc).
+
+### Phone profile
+`profile.py` keeps one file per phone model and app version. Hardware facts for every lens come from
+`dumpsys media.camera` once (focal length, aperture, OIS, closest focus, sensor, high-speed modes, HDR profiles),
+matched to the app's lens ids (they are Android's camera ids; fallback by facing and 35 mm-equivalent focal length).
+What the app offers (formats, frame rates, off-speed limits, ISO, shutter, zoom) is only reported for the active lens,
+so it's learned every 5 s for whichever lens is active, or for all lenses by `POST /profile/scan`: save a temporary
+preset, switch through the lenses, load the preset (restores lens, format and everything else), delete it. The page
+shows it in the Phone tile and as a hint under off-speed; live values still come from the app.
 
 ### Screen off while recording
 `automation.py` reacts to `/transports/0/record` changes: `screen.set(False)` (scrcpy `SET_DISPLAY_POWER`) and

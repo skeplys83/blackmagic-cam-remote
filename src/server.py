@@ -25,7 +25,7 @@ import sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 
-from blackmagic_cam_remote import auth, config, events, readiness, recformat  # noqa: E402
+from blackmagic_cam_remote import auth, config, events, profile, readiness, recformat  # noqa: E402
 from blackmagic_cam_remote.adb import adb, set_adb_identity  # noqa: E402
 from blackmagic_cam_remote.tls import tls_context  # noqa: E402
 from blackmagic_cam_remote.webserver import Handler, Server  # noqa: E402
@@ -52,6 +52,7 @@ def main():
     events.hub = events.EventHub()
     readiness.readiness = readiness.Readiness()
     recformat.watch()
+    profile.profile = profile.Profile()
 
     srv = Server((args.host, args.port), Handler)
     print(f"Blackmagic Cam Remote listening on {'https' if config.TLS else 'http'}://{args.host}:{args.port}"

@@ -119,6 +119,7 @@
         <div class="row"><label>Codec</label><select id="fmtCodec"></select></div>
         <div class="row"><label>Color space</label><select id="fmtColor"></select></div>
         <div class="row"><label>Off-speed</label><select id="fmtOff"></select></div>
+        <div class="row hint" id="fmtLensHint" hidden></div>
         <div class="row"><label>Audio codec</label><output id="fmtAudio" style="text-align:left">–</output></div>
         <div class="row"><label class="check"><input type="checkbox" id="proxy"> Record proxy files too</label></div>
         <div class="row" id="fmtNote" style="color:var(--dim);font-size:12px" hidden>Stop recording to change the format.</div>
@@ -221,6 +222,10 @@
       <div class="row"><label class="check"><input type="checkbox" id="autoDnd"> Do Not Disturb while recording</label></div>
       <div class="row"><button class="btn" id="screenOff">Screen off now</button><button class="btn" id="screenOn">Screen on</button></div>
       <p class="note" style="margin-top:4px">Screen off turns only the display panel off; the camera keeps running and touches still reach the app. A back gesture on the phone (swipe in from a screen edge) turns it on again.</p>
+      <h3 class="sub">Capabilities <span class="hint" id="capPhone"></span></h3>
+      <div class="scrollx"><table class="mon cap" id="capTable"><tbody><tr><td>Learning…</td></tr></tbody></table></div>
+      <div class="row"><button class="btn" id="capScan">Scan all lenses</button><span class="hint" id="capStatus"></span></div>
+      <p class="note">Hardware facts come from Android; formats and frame rates from Blackmagic Camera, learned for each lens while it's active. The scan switches through all lenses (a few seconds each) and then restores your settings. Not while recording.</p>
     </section>
     <section class="a-rec">
       <h2>Recordings <span class="grow"></span><button class="btn small" id="clipsRefresh">Refresh</button></h2>

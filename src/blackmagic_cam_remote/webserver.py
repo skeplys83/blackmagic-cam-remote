@@ -12,7 +12,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-from . import auth, config, events, readiness
+from . import auth, config, events, profile, readiness
 from .adb import phone_host
 from .mirror import PRESETS, T_REPLACED, Mirror, take_over
 from .phone import orientation, phone_status, viewport
@@ -281,6 +281,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 return self._json(delete_clip(urllib.parse.parse_qs(u.query)["name"][0]))
             if u.path == "/format/resolution" and self.command == "POST":
                 return self._json(set_resolution(body["width"], body["height"], body.get("openGate", False)))
+            if u.path == "/profile/scan" and self.command == "POST":
+                if not profile.profile:
+                    raise RuntimeError("not ready")
+                return self._json(profile.profile.scan())
             if u.path == "/format/colorspace" and self.command == "POST":
                 return self._json(set_color_space(str(body.get("colorSpace", ""))))
             if u.path == "/screen" and self.command == "POST":

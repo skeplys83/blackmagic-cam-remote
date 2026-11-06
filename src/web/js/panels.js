@@ -61,6 +61,7 @@ function renderFormat() {
     fillSelect(csel, opts, (o) => o);
     if (!state.colorChanging && document.activeElement !== csel) csel.value = cspace.current;
   }
+  lensHint(f);
   const a = P['/system/audioCodec']; $('fmtAudio').textContent = a ? a.codec : '–';
   for (const id of ['fmtRes', 'fmtFps', 'fmtCodec', 'fmtOff']) $(id).disabled = state.recording || !!fmtBusy;
   $('fmtColor').disabled = state.recording || !!fmtBusy || !!state.colorChanging || !cspace;
@@ -327,3 +328,64 @@ $('audioChannels').addEventListener('change', (e) => {
   const i = e.target.dataset.ch;
   send(`audio/channel/${i}/input`, 'PUT', { input: inputLabel(e.target.value) }, `Input ${+i + 1}`);
 });
+
+// ---------- phone capabilities (the helper's phone profile, pushed as `@profile`) ----------
+const sizeMP = (wh) => wh ? (wh[0] * wh[1] / 1e6).toFixed(1) + ' MP' : '–';
+const maxBy = (arr, f) => arr.reduce((m, x) => Math.max(m, f(x)), 0);
+const pixels = (s) => s.split('x').reduce((a, b) => a * b, 1);
+function lensMax(app) { // what the app offers on a lens, summed up
+  if (!app) return null;
+  const fm = app.formats;
+  const big = fm.reduce((m, x) => pixels(x.size) > pixels(m.size) ? x : m, fm[0] || { size: '0x0' });
+  return { res: big.group ? `${big.group} ${big.size.replace('x', '×')}` : '–', fps: maxBy(fm, x => maxBy(x.frameRates, Number)),
+    off: maxBy(fm, x => x.offSpeed[1]) };
+}
+function renderProfile() {
+  const pr = P['@profile']; if (!pr) return;
+  const ph = pr.phone || {};
+  $('capPhone').textContent = `${ph.manufacturer || ''} ${ph.model || ''} · Android ${ph.android || '?'} · Blackmagic Camera ${ph.appVersion || '?'}`;
+  const ids = Object.keys(pr.lenses).sort((a, b) => (pr.lenses[a].facing === 'front') - (pr.lenses[b].facing === 'front') || pr.lenses[a].focalLength - pr.lenses[b].focalLength);
+  const L = ids.map(id => ({ id, ...pr.lenses[id], max: lensMax(pr.lenses[id].app) }));
+  const cell = (v, ok = true) => `<td class="${ok ? '' : 'no'}">${v}</td>`;
+  const rows = [
+    ['Focal length', l => cell(`${l.focalLength} mm`)],
+    ['Aperture', l => cell(l.hardware?.aperture ? 'f/' + l.hardware.aperture.toFixed(1) : '–')],
+    ['Optical stabilization', l => cell(l.hardware ? (l.hardware.ois ? 'yes' : 'no') : '–', !!l.hardware?.ois)],
+    ['Closest focus', l => cell(l.hardware?.minFocusCm ? l.hardware.minFocusCm + ' cm' : 'fixed', !!l.hardware?.minFocusCm)],
+    ['Sensor', l => cell(sizeMP(l.hardware?.sensorPixels))],
+    ['HDR', l => cell((l.hardware?.hdr || []).join(', ') || 'no', !!l.hardware?.hdr?.length)],
+    ['Max resolution', l => cell(l.max ? l.max.res : 'not scanned', !!l.max)],
+    ['Max frame rate', l => cell(l.max ? l.max.fps + ' fps' : '–', !!l.max)],
+    ['Max off-speed', l => cell(l.max ? l.max.off + ' fps' : '–', !!l.max)],
+  ];
+  const key = JSON.stringify([ids, pr.lenses]);
+  const tbl = $('capTable');
+  if (tbl.dataset.key !== key) {
+    tbl.dataset.key = key;
+    tbl.innerHTML = `<thead><tr><th></th>${L.map(l => `<th>${l.name || l.id}</th>`).join('')}</tr></thead><tbody>` +
+      rows.map(([name, f]) => `<tr><td>${name}</td>${L.map(f).join('')}</tr>`).join('') + '</tbody>';
+  }
+  const scan = pr.scan || {};
+  $('capStatus').textContent = scan.state === 'idle' ? (pr.scanned ? 'Last scan: ' + new Date(pr.scanned).toLocaleString() : '') : scan.message;
+  $('capScan').disabled = scan.state === 'scanning' || state.recording;
+  $('capScan').textContent = scan.state === 'scanning' ? 'Scanning…' : 'Scan all lenses';
+}
+$('capScan').onclick = async () => {
+  try {
+    const r = await fetch('/profile/scan', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+    const j = await r.json(); if (!r.ok) throw new Error(j.error);
+  } catch (err) { toast('Scan: ' + err.message); }
+};
+
+// What the other lenses offer at the current resolution (from the profile), under the off-speed control.
+function lensHint(f) {
+  const pr = P['@profile'], act = P['/lens/cameras/active'], el = $('fmtLensHint');
+  if (!pr || !act || !f) { el.hidden = true; return; }
+  const size = `${f.recordResolution.width}x${f.recordResolution.height}`;
+  const parts = Object.entries(pr.lenses).filter(([id, l]) => id !== act.id && l.app).map(([, l]) => {
+    const fm = l.app.formats.filter(x => x.size === size);
+    return fm.length ? `${l.name}: up to ${maxBy(fm, x => x.offSpeed[1])} fps` : `${l.name}: not at this resolution`;
+  });
+  el.hidden = !parts.length;
+  el.textContent = 'Other lenses at this resolution · ' + parts.join(' · ');
+}
