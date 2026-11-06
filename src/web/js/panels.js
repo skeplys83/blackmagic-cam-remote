@@ -253,6 +253,8 @@ async function pollPhone() {
     $('phBattery').className = !p.battery.charging && p.battery.level <= 15 ? 'bad' : !p.battery.charging && p.battery.level <= 30 ? 'warn' : '';
     $('phScreen').textContent = `${p.screenOff ? 'off' : 'on'} · DND ${p.dnd ? 'on' : 'off'}`;
     // Left bar: short forms
+    $('batState').textContent = p.battery.charging ? 'charging' : 'draining';
+    $('batDot').className = 'dot ' + (p.battery.charging ? 'ok' : 'bad');
     $('sbTemp').textContent = t != null ? `${Math.round(t)} °C` : '–'; $('sbTemp').className = $('phTemp').className;
     $('sbWifi').textContent = w.rssi != null ? q : 'off'; $('sbWifi').className = $('phWifi').className; $('sbWifi').title = $('phWifi').textContent;
     state.screenOff = p.screenOff;

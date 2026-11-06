@@ -288,3 +288,8 @@ table.cap td.no { color: var(--dim); }
 .sbtns { display: flex; flex-direction: column; gap: 6px; contain: inline-size; }
 .sbtns .btn { width: 100%; min-height: 84px; padding: 10px 4px; font-size: 11px; white-space: normal; overflow-wrap: anywhere; line-height: 1.15; }
 @media (max-width: 900px) { .sbtns { flex-direction: row; contain: none; } .sbtns .btn { width: auto; } }
+
+/* Battery state under the percentage: green dot charging, red dot draining */
+header .stat .batstate { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--dim); }
+header .stat .batstate .dot { width: 7px; height: 7px; }
+header .stat .batstate span { font-size: 11px; }

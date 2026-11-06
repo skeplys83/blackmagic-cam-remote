@@ -2,8 +2,9 @@
 
 <h1 align="center">Blackmagic Cam Remote</h1>
 
-<p align="center">Remote-control the <b>Blackmagic Camera</b> app on an Android phone from any browser:<br>
-live view with overlays and sound, camera controls, recording format, presets, recordings and phone health.</p>
+<p align="center">Control the <b>Blackmagic Camera</b> app on your Android phone from any browser.</p>
+
+<p align="center">Bugs, ideas, other phones: <a href="https://github.com/skeplys83/blackmagic-cam-remote/issues">issues are welcome</a>.</p>
 
 > Not affiliated with or endorsed by Blackmagic Design. "Blackmagic Camera" is their app; this project only talks
 > to the HTTP API the app offers on your local network, plus Android's standard debugging tools.
@@ -172,6 +173,12 @@ system and the development workflow.
   contributors (Apache-2.0). The Docker image downloads `scrcpy-server` from its official releases and verifies
   the checksum.
 - adb is part of the Android SDK Platform Tools.
+
+### Feedback
+
+Found a bug, have an idea, or tried it on a phone other than a Pixel 10? Please
+[open an issue](https://github.com/skeplys83/blackmagic-cam-remote/issues), all reports are welcome. For another
+phone, the model, Android version and Blackmagic Camera version help (all shown in the Phone tile).
 
 ### License
 
