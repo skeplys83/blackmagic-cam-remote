@@ -30,6 +30,8 @@ git grep -n -i -E '<your phone ip>|<adb serial>|<wifi name>|@gmail|/Users/' -- .
 - Read a value, write it back unchanged, then test the real change and **restore it**.
 - For page changes, test in a browser tab and check `read_console_messages`/DevTools for errors.
 - Live view tests: only one stream at a time; opening a test tab takes it over from other tabs.
+- Pairing a host adb without typing the code: through the container's adb, tap *Pair device with pairing code* on
+  the Wireless debugging screen, read IP:port and code from `uiautomator dump`, then `adb pair` on the host.
 - Things that need a human: scanning a QR code, back gesture, real recordings (clean up test clips).
 
 ## Gotchas found the hard way

@@ -12,7 +12,9 @@ Android app (live view, camera controls, recordings, phone health) through the a
 | UI layout, design tokens, control sizes, behaviour rules | [docs/design/ui.md](docs/design/ui.md) |
 | Running, testing, debugging, releasing | [docs/development/workflow.md](docs/development/workflow.md) |
 
-`CLAUDE.md` and `docs/` are excluded from the Docker image (`.dockerignore`).
+`CLAUDE.md` and `docs/` are excluded from the Docker image (`.dockerignore`). Folder-level `CLAUDE.md` files in
+`src/blackmagic_cam_remote/` and `src/web/` hold the rules for that part. `CLAUDE.local.md` (gitignored, may not
+exist) holds the maintainer's personal setup and preferences; never copy its contents into tracked files.
 
 ## Layout
 

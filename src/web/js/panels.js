@@ -10,14 +10,16 @@ const sameRes = (a, b) => a && b && a.width === b.width && a.height === b.height
 function formats() { return P['/system/supportedFormats']?.supportedFormats || []; }
 
 let fmtBusy = null; // the format change in flight (see putFormat)
-// Off-speed (sensor) rates offered: the usual ones within the limits the camera reports for the active lens and
-// resolution (`/system/format` min/max), plus the high-speed rates of this format (120/240 where the sensor has
-// them). Tested: any whole rate from 15 to 60 works; between 60 and the high-speed rates the app refuses (400).
-// The list runs low → high with "Off" (= the project rate) in its place.
+// Off-speed (sensor) rates offered. Everything device-specific comes from the phone: the limits for the active lens
+// and resolution (`/system/format` min/max, updated live on lens/resolution changes) and the format's high-speed
+// rates (`/system/supportedFormats` frameRates above 60). Within those limits we offer common rates plus the limits
+// themselves. On a Pixel 10 any whole rate up to 60 works and above 60 only the listed high-speed rates (others →
+// 400); other phones may differ, and a refused rate just shows an error toast.
 const OFF_SPEED_RATES = [15, 16, 20, 24, 25, 30, 40, 45, 48, 50, 60];
 function offSpeedRates(f, fmt) {
-  const project = +f.frameRate, lo = f.minOffSpeedFrameRate, hi = f.maxOffSpeedFrameRate;
-  const rates = new Set(OFF_SPEED_RATES.concat((fmt?.frameRates || []).map(Number).filter(r => r > 60)));
+  const project = +f.frameRate, lo = Math.ceil(f.minOffSpeedFrameRate), hi = Math.floor(f.maxOffSpeedFrameRate);
+  const high = (fmt?.frameRates || []).map(Number).filter(r => r > 60);
+  const rates = new Set([lo, ...OFF_SPEED_RATES, ...high, ...(high.length ? [] : [hi])]);
   if (f.offSpeedEnabled) rates.add(f.offSpeedFrameRate); // keep a value set on the phone visible
   rates.delete(project);
   const list = [...rates].filter(r => r >= lo && r <= hi).sort((a, b) => a - b).map(String);

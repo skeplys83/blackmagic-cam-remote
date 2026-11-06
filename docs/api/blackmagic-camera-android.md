@@ -1,6 +1,6 @@
 # Blackmagic Camera (Android) API: what actually works
 
-Tested with Blackmagic Camera 3.5.1 on a Pixel 10 (Android 17). Base URL `https://<phone>:4444/control/api/v1`,
+Tested with Blackmagic Camera 3.5.1 on a Pixel 10 (Android 17) only. Base URL `https://<phone>:4444/control/api/v1`,
 self-signed certificate, no authentication. The app ships its own OpenAPI files at `/control/documentation.html`,
 but the Android implementation differs from them in many places. **Check here first, then verify on a phone.**
 
@@ -54,6 +54,18 @@ but the Android implementation differs from them in many places. **Check here fi
 | `GET /clips` | Per clip: `videoFormat.name` (file name without `.mp4`), `frameCount`, `videoFormat.frameRate`, `durationTimecode`, `filePath` (a `content://media/…` URI). The list lags behind deletions |
 | `/camera/motionSensor/euler` | `roll ≈ atan2(gy, gx)` in radians |
 
+## Other phones
+Only a Pixel 10 has been tested. The page takes device-specific values from the app wherever it reports them:
+lenses (`/lens/cameras`), formats and frame rates (`/system/supportedFormats`), off-speed limits per lens and
+resolution (`/system/format`), ISO and shutter lists (`/video/supported*`), audio inputs. Assumptions that may not
+hold elsewhere: which off-speed rates between the limits are accepted, the viewfinder being the largest
+`SurfaceView`, and the clip folder path. When something is refused, the page shows the app's error.
+
+## Not in the REST API
+The app's own remote protocol (port 2222, advertised as `_bmd-cam-control._tcp`; protobuf over a WebRTC data
+channel, signaling over a websocket) also has the stabilization mode and exposure compensation. Not used here: it
+would need a WebRTC stack (no standard-library option).
+
 ## adb facts used by the helper
 - Display rotation: `dumpsys display | grep -m1 -o 'orientation=[0-9]'`.
 - Foreground app: `dumpsys activity activities | grep topResumedActivity=`; live events via
@@ -67,5 +79,7 @@ but the Android implementation differs from them in many places. **Check here fi
   (`IP_MULTICAST_IF`), and ask both ways: a normal query from port 5353 (answers go to the group) and a direct
   ("QU") query from its own port; on a shared port 5353 a direct answer can go to avahi/mDNSResponder instead.
   Google's platform-tools adb has mDNS but may not be redistributed in the image (Android SDK license).
+- The scrcpy-server microphone capture (`audio_source=mic`) works while Blackmagic Camera records; Android lets both
+  read the mic.
 - Pairing name on the phone is `"<LOGNAME>@<HOSTNAME>"` of the adb server process (not the key comment); Android
   cuts it at the first space.
