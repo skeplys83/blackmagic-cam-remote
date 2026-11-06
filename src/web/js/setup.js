@@ -68,7 +68,7 @@ async function pollQr() {
   try {
     const r = await fetch('/setup/qr-status', { method: 'POST' }); const q = await r.json();
     $('qrStatus').textContent = q.message || '';
-    if (q.knownIp && !$('qrIp').value) $('qrIp').value = q.knownIp;
+    if (q.knownIp) prefillAddresses(q.knownIp);
     if (['done', 'failed', 'timeout'].includes(q.state)) {
       clearInterval(qrTimer); qrTimer = null; $('qrBtn').textContent = 'Show a new QR code';
       if (q.state !== 'done') $('qrBox').hidden = true; else setTimeout(() => { $('qrBox').hidden = true; }, 3000);
@@ -78,7 +78,7 @@ async function pollQr() {
 $('qrBtn').onclick = async () => {
   $('qrBtn').disabled = true;
   try {
-    const r = await fetch('/setup/qr', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ip: $('qrIp').value.trim() }) });
+    const r = await fetch('/setup/qr', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ip: $('qrIp').value.trim() === ADDR_PREFIX ? '' : $('qrIp').value.trim() }) }); // the bare prefix = not entered
     const j = await r.json(); if (!r.ok) throw new Error(j.error);
     if (j.ip) $('qrIp').value = j.ip;
     $('qrBox').innerHTML = j.svg; $('qrBox').hidden = false; $('qrStatus').textContent = 'Scan the code with the phone';
@@ -114,6 +114,19 @@ function stopDashboard() {
 
 setInterval(() => { if (dashboardOn) pollPhone(); }, 5000);
 
-// Prefill the phone IP if it's known from an earlier pairing.
-fetch('/setup/qr-status', { method: 'POST' }).then(r => r.json()).then(q => { if (q.knownIp) $('qrIp').value = q.knownIp; }).catch(() => {});
+// Prefill the address fields: the phone's IP if known from an earlier pairing (the port changes, so the pair/connect
+// fields end in ":"), otherwise the usual home-network prefix. Only fields the user hasn't typed into are touched.
+const ADDR_PREFIX = '192.168.';
+function prefillAddresses(ip) {
+  for (const [id, v] of [['qrIp', ip || ADDR_PREFIX], ['pairAddr', ip ? ip + ':' : ADDR_PREFIX], ['connAddr', ip ? ip + ':' : ADDR_PREFIX]]) {
+    const el = $(id);
+    if (!el.dataset.typed && document.activeElement !== el) el.value = v;
+  }
+}
+for (const id of ['qrIp', 'pairAddr', 'connAddr']) {
+  $(id).addEventListener('input', (e) => { e.target.dataset.typed = '1'; });
+  $(id).addEventListener('focus', (e) => { const el = e.target; setTimeout(() => el.setSelectionRange(el.value.length, el.value.length)); });
+}
+prefillAddresses();
+fetch('/setup/qr-status', { method: 'POST' }).then(r => r.json()).then(q => { if (q.knownIp) prefillAddresses(q.knownIp); }).catch(() => {});
 watchSetup();
