@@ -4,7 +4,7 @@
 
 <p align="center">Control the <b>Blackmagic Camera</b> app on your Android phone from any browser.</p>
 
-<p align="center">Bugs, ideas, other phones: <a href="https://github.com/skeplys83/blackmagic-cam-remote/issues">issues are welcome</a>.</p>
+<p align="center">Found a problem? Please <a href="https://github.com/skeplys83/blackmagic-cam-remote/issues">open an issue</a>.</p>
 
 > Not affiliated with or endorsed by Blackmagic Design. "Blackmagic Camera" is their app; this project only talks
 > to the HTTP API the app offers on your local network, plus Android's standard debugging tools.
@@ -176,9 +176,9 @@ system and the development workflow.
 
 ### Feedback
 
-Found a bug, have an idea, or tried it on a phone other than a Pixel 10? Please
-[open an issue](https://github.com/skeplys83/blackmagic-cam-remote/issues), all reports are welcome. For another
-phone, the model, Android version and Blackmagic Camera version help (all shown in the Phone tile).
+If you run into a problem, please [open an issue](https://github.com/skeplys83/blackmagic-cam-remote/issues).
+On a phone other than a Pixel 10, include the model, Android version and Blackmagic Camera version (all shown in
+the Phone tile).
 
 ### License
 
