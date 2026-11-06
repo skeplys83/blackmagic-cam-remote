@@ -61,12 +61,29 @@ def delete_clip(name):
     if uri.startswith("content://media/"):
         adb("shell", f"content delete --uri {shlex.quote(uri)}", timeout=15)
     if adb("shell", f"test -e '{path}' && echo yes", timeout=10).stdout.strip():
-        adb("shell", f"content delete --uri content://media/external/file --where \"_data LIKE '%/{safe_name(name)}'\"", timeout=15)
+        # only this folder: the same name exists in Proxy/ (handled below) and could exist elsewhere on the phone
+        adb("shell", f"content delete --uri content://media/external/file --where \"_data LIKE '%/{config.CLIPS_DIR.rsplit('/', 1)[1]}/{safe_name(name)}'\"", timeout=15)
     if adb("shell", f"test -e '{path}' && echo yes", timeout=10).stdout.strip():
         adb("shell", f"rm '{path}'", timeout=15)
     if adb("shell", f"test -e '{path}' && echo yes", timeout=10).stdout.strip():
         raise RuntimeError("the phone didn't delete the file")
-    return {"deleted": name}
+    return {"deleted": name, "proxies": _delete_proxies(name)}
+
+
+def _delete_proxies(name):
+    """Delete the clip's proxy files (Proxy/ next to the clips, same name, possibly with a suffix)."""
+    base = safe_name(name).rsplit(".", 1)[0]
+    folder = f"{config.CLIPS_DIR}/Proxy"
+    listing = adb("shell", f"ls '{folder}' 2>/dev/null", timeout=10).stdout.decode(errors="replace").split("\n")
+    gone = []
+    for proxy in [f.strip() for f in listing if f.strip().startswith(base)]:
+        ppath = f"{folder}/{proxy}"
+        adb("shell", f"content delete --uri content://media/external/file --where \"_data LIKE '%/Proxy/{proxy}'\"", timeout=15)
+        if adb("shell", f"test -e '{ppath}' && echo yes", timeout=10).stdout.strip():
+            adb("shell", f"rm '{ppath}'", timeout=15)
+        if not adb("shell", f"test -e '{ppath}' && echo yes", timeout=10).stdout.strip():
+            gone.append(proxy)
+    return gone
 
 
 def clip_size(name):

@@ -165,8 +165,12 @@ def _publish(state):
         events.hub.publish("@colorSpace", state)
 
 
-def watch(interval=3):
-    """Publish the color space as `@colorSpace` whenever it changes (also when changed on the phone)."""
+def watch(interval=5):
+    """Publish the color space as `@colorSpace` whenever it changes (also when changed on the phone).
+
+    The app announces no event for it (it's set in the app's own settings), so this is checked every few seconds,
+    except while recording.
+    """
     def run():
         global _supported, _last
         while True:
@@ -174,6 +178,8 @@ def watch(interval=3):
             if not (events.hub and events.hub.connected):
                 _supported = _last = None  # re-read after a reconnect (another phone, app update)
                 continue
+            if events.hub.recording():
+                continue  # can't change while recording; no adb load then
             try:
                 _publish(color_space_state())
             except Exception:

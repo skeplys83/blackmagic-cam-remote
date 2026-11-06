@@ -4,6 +4,7 @@ import os
 import re
 import subprocess
 import threading
+import time
 
 from . import config, mdns
 from .settings import settings
@@ -31,9 +32,55 @@ def adb_serial():
             out = subprocess.run(["adb", "devices"], capture_output=True, text=True).stdout
             devices = [l.split("\t")[0] for l in out.splitlines()[1:] if l.endswith("\tdevice")]
         if not devices:
+            _start_port_scan()
             raise RuntimeError("phone not connected over adb (see setup)")
         _serial = devices[0]
         return _serial
+
+
+_scan = {"running": False, "last": 0.0}
+
+def _start_port_scan():
+    """Find the phone's new Wireless debugging port by scanning its known IP (in the background).
+
+    The port changes when Wireless debugging restarts (reboot, toggle, Wi-Fi change). With mDNS (Linux, host
+    networking) the phone is found above; Docker Desktop has no multicast, so scan the open ports of the last known
+    IP and `adb connect` to each until one works. At most once a minute; a sweep takes 10-30 s.
+    """
+    ip = settings.get("phoneIp") or (settings.get("lastAddress") or "").rpartition(":")[0]
+    if not ip or _scan["running"] or time.time() - _scan["last"] < 60:
+        return
+    _scan.update(running=True, last=time.time())
+
+    def run():
+        from .setup import open_ports  # setup imports this module
+        import queue
+        done, found = threading.Event(), queue.Queue()
+
+        def connector():  # adb connect blocks for seconds; keep it out of the scanner's event loop
+            while not done.is_set():
+                port = found.get()
+                if port is None:
+                    return
+                try:
+                    out = subprocess.run(["adb", "connect", f"{ip}:{port}"], capture_output=True, text=True, timeout=10)
+                except subprocess.TimeoutExpired:
+                    continue
+                text = out.stdout + out.stderr
+                if "connected to" in text and "failed" not in text:
+                    settings.update({"lastAddress": f"{ip}:{port}"})
+                    print(f"adb: reconnected on new port {port}", flush=True)
+                    done.set()
+        worker = threading.Thread(target=connector, daemon=True)
+        worker.start()
+        try:
+            open_ports(ip, on_port=lambda p: p in (config.API_PORT, 2222) or found.put(p),
+                       keep_going=lambda: not done.is_set())
+        finally:
+            found.put(None)
+            worker.join(timeout=60)
+            _scan.update(running=False, last=time.time())
+    threading.Thread(target=run, daemon=True).start()
 
 _phone_ip = {"serial": None, "ip": None}
 

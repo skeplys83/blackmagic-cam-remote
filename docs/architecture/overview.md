@@ -102,6 +102,17 @@ shows it in the Phone tile and as a hint under off-speed; live values still come
 `cmd notification set_dnd priority`; both are undone when recording stops. A back gesture (edge swipe seen by
 `getevent`) turns the screen on. If the control session dies, scrcpy's cleanup restores the display.
 
+### Reconnecting
+`adb_serial()` tries, in order: the connected device, mDNS (`_adb-tls-connect._tcp`), the saved `lastAddress`. If
+all fail (Wireless debugging got a new port and there's no multicast, as on Docker Desktop), a background scan of
+the phone's known IP (`setup.open_ports`, at most once a minute) hands each open port to a worker that tries
+`adb connect` and saves the one that works.
+
+### Background reads
+Capabilities are read once per connection (`profile.py` hardware part) and when the active lens changes. Current
+values the app doesn't push are re-read in loops (REST re-read in `events.py`, color space in `recformat.py`); all of
+them pause while the phone records.
+
 ### QR pairing
 The QR encodes `WIFI:T:ADB;S:<name>;P:<password>;;`. The phone then opens a pairing port. The helper finds it via
 mDNS (`_adb-tls-pairing._tcp` named `<name>`, through `mdns.py` since the image's adb has no mDNS) or, without mDNS, by scanning the phone's IP (32768–49999 first,

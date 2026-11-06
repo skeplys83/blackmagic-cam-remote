@@ -2,7 +2,8 @@
 
 The app doesn't push every change (e.g. switching lens on the phone updates `/lens/cameras/active` but not the
 `isActive` flags in `/lens/cameras`), so a second thread re-reads all properties over REST in a loop and publishes
-the ones that changed. That bounds how long the dashboard can show a stale value to one pass (~4 s).
+the ones that changed. That bounds how long the dashboard can show a stale value to one pass (~4 s). It pauses while
+the phone records.
 """
 import base64
 import http.client
@@ -52,6 +53,9 @@ class EventHub:
         with self.lock:
             if q in self.clients:
                 self.clients.remove(q)
+
+    def recording(self):
+        return bool((self.cache.get("/transports/0/record") or {}).get("recording"))
 
     def publish(self, prop, value):
         """Publish a value that doesn't come from the app (e.g. "@colorSpace")."""
@@ -169,6 +173,8 @@ class EventHub:
                 self.rest_seen.clear()
                 self.unreadable.clear()
                 continue
+            if self.recording():
+                continue  # leave the phone alone while it records; changes made meanwhile are caught afterwards
             try:
                 host = phone_host()
                 if conn is None or conn.host != host:

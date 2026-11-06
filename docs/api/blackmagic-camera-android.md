@@ -61,7 +61,7 @@ but the Android implementation differs from them in many places. **Check here fi
 | `PUT /audio/channel/N/input` | Current input reads `"PhoneMicrophone"` but only `"Phone Microphone"` is accepted (the input list uses the spaced form) |
 | `PUT /audio/channel/N/level` | Needs all three fields `{"gain","normalized","normalised"}` |
 | `/audio/channel/N/{padding,lowCutFilter,phantomPower}` | 400 (no such hardware) |
-| `PUT /transports/0/proxyRecording` | `{"enabled": bool}`. Proxies (a small second copy of each clip for editing) go to a `Proxy` subfolder of the clip folder |
+| `PUT /transports/0/proxyRecording` | `{"enabled": bool}`. Proxies (a small second copy of each clip for editing) go to a `Proxy` subfolder of the clip folder, under the clip's file name; deleting a clip from the dashboard deletes them too |
 | `/slates/...` | Readable (reel, scene, take, …); writes via `/slates/{target}/{category}/{property}`, untested |
 | `GET /clips` | Per clip: `videoFormat.name` (file name without `.mp4`), `frameCount`, `videoFormat.frameRate`, `durationTimecode`, `filePath` (a `content://media/…` URI). The list lags behind deletions |
 | `/camera/motionSensor/euler` | `roll ≈ atan2(gy, gx)` in radians |

@@ -39,9 +39,14 @@ Tile headings: 12px, uppercase, `letter-spacing: .08em`, `--dim`.
 │      │ Recordings (full width)                                   │
 └──────┴──────────────────────────────────────────────────────────┘
 ```
+- Page: full window width (no max width), 16px gutter.
 - Sidebar (`aside.sidebar`): app icon (link to GitHub, no hover effect) above the phone info box; as narrow as the
   box's longest word (`min-content`), grows downwards; sticky. Hidden on the setup screen. Under 900px it becomes a
-  top bar.
+  top bar. Contents: phone name, pills (Wi-Fi, App open), Battery, Rec left, Temp, Wi-Fi quality, Storage, then two
+  tall buttons (84px): the screen toggle (shows the current state, "Screen on"/"Screen off", highlighted when off)
+  and "Scan lenses". The buttons use `contain: inline-size`, so their text never widens the bar.
+  Format and lens are not repeated there (they're in the right column).
+- Right column: Lens & zoom (back lenses in the left column, front in the right), Focus, Recording format.
 - Live view and key controls are always side by side (right column `clamp(260px, 26vw, 360px)`).
 - Second-level settings: fixed CSS grid areas (`.settings`, 4 columns; 2 columns under 1300px).
 - Setup screen: centered, max 1100px, three step cards side by side.
@@ -52,3 +57,6 @@ Tile headings: 12px, uppercase, `letter-spacing: .08em`, `--dim`.
 - Rotation: Auto follows the phone's screen rotation; 0/90/180/270 override (remembered per browser).
 - Only one live view per server; a replaced tab shows "Show it here".
 - Labels and statuses are short; full text goes in `title` (e.g. sidebar pills "Wi-Fi", "App open").
+- Readouts that update often get a fixed width (e.g. the live view's fps/Mbit text), so nothing re-wraps and the
+  live view never changes size.
+- Recording timer: time since record start (from the helper), `HH:MM:SS:FF` like the phone (3 frame digits >99 fps).

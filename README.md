@@ -5,8 +5,6 @@
 <p align="center">Remote-control the <b>Blackmagic Camera</b> app on an Android phone from any browser:<br>
 live view with overlays and sound, camera controls, recording format, presets, recordings and phone health.</p>
 
-<p align="center"><img src="docs/images/screenshot.jpg" alt="The dashboard: live view, lens, recording format and focus controls, exposure, white balance, audio, phone, monitoring overlays, presets and recordings" width="100%"></p>
-
 > Not affiliated with or endorsed by Blackmagic Design. "Blackmagic Camera" is their app; this project only talks
 > to the HTTP API the app offers on your local network, plus Android's standard debugging tools.
 
@@ -76,13 +74,21 @@ Details: [docs/architecture/overview.md](docs/architecture/overview.md).
 ## Features
 
 - **Live view**: viewfinder only or full screen, rotation (auto or fixed), sound on/off, four stream qualities
-  (24 fps max), red frame and timecode while recording.
-- **Main controls** beside it: record, lens selection, zoom, image stabilization, recording format (resolution,
-  frame rate, codec, color space (what the phone supports), off-speed with the resulting slow-motion/fast-motion factor per lens, proxy files), focus (continuous, manual, focus once).
+  (24 fps max), red frame and a recording timer.
+- **Main controls** beside it: record, lens selection (back and front lenses side by side), zoom, image
+  stabilization, focus (continuous, manual, focus once), and the recording format: resolution, frame rate, codec,
+  color space (only what the phone supports), off-speed with the resulting slow-/fast-motion factor and what the
+  other lenses manage at that resolution, audio codec (AAC or PCM), proxy files.
 - **Settings tiles**: exposure (auto/manual, ISO, shutter as speed or angle, false color / zebra), white balance,
-  audio (input and gain per channel), phone (temperature, Wi-Fi, storage, battery; screen off and Do Not Disturb
-  while recording), monitoring overlays for the phone screen and HDMI out, presets, recordings (thumbnails,
-  duration, playback, download, delete).
+  audio (input and gain per channel), monitoring overlays for the phone screen and HDMI out, presets, recordings
+  (thumbnails, duration, playback, download, delete including the proxy files).
+- **Phone**: temperature, Wi-Fi, storage and battery always in view on the left, with buttons to turn the phone's
+  screen off/on and to scan all lenses. Screen off and Do Not Disturb while recording (screen off is on by default).
+- **Capabilities per lens**: aperture, stabilization, closest focus, sensor, HDR, maximum resolution and frame
+  rates, from Android and the Blackmagic app, saved as a profile per phone and app version. "Scan lenses" learns
+  every lens at once and restores your settings afterwards.
+- **Stays in sync** with changes made on the phone, and leaves the phone alone while it records.
+- **Reconnects by itself** when Wireless debugging changes its port.
 - **Touch friendly**: every control is at least 44 px, so it works well on an iPad.
 
 ## Other
@@ -144,8 +150,9 @@ python3 src/server.py     # then open http://localhost:8080
 - **QR code scanned, nothing happens**: on Docker Desktop (no multicast in containers), enter the phone's IP next to
   the QR code, or pair with a code. On Linux with `compose.server.yaml` it works without the IP; if not, check that
   the host's firewall allows mDNS (UDP 5353).
-- **Phone disconnects after a while**: Wireless debugging got a new port. With host networking it reconnects by
-  itself; otherwise enter the new *IP address & port* under *Connect manually*.
+- **Phone disconnects after a while**: Wireless debugging got a new port. The dashboard finds it by itself (mDNS
+  with host networking, otherwise by scanning the phone's ports, 10-30 s). If that fails, enter the new
+  *IP address & port* under *Connect manually*.
 - **"Reachable over the network" fails**: phone and computer are on different networks, or the Wi-Fi isolates devices.
 - **Live view says another tab took it**: only one live view runs at a time; click *Show it here*.
 

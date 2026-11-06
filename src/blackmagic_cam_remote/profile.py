@@ -5,7 +5,7 @@ Two sources, kept apart because they answer different questions:
   Covers every lens at once (focal length, aperture, OIS, minimum focus, sensor, high-speed modes, HDR profiles).
   It's what the hardware can do, which is more than the app may offer.
 - app: what Blackmagic Camera offers for a lens (formats, frame rates, off-speed limits, codecs, ISO, shutter, zoom).
-  The app's API only describes the active lens, so this is learned whenever a lens is active, or for all lenses at
+  The app's API only describes the active lens, so this is learned when a lens becomes active, or for all lenses at
   once with a scan (switches through them and restores the previous settings from a temporary preset).
 The dropdowns keep using the live values; the profile adds what other lenses can do and explains limits.
 File: <data>/profiles/<manufacturer>_<model>_<app version>.json (no serials or addresses).
@@ -241,20 +241,26 @@ class Profile:
             self.publish()
 
     def _run(self):
-        ready = False
+        """Set up once per connection; learn a lens's app part only when that lens becomes active (pushed event)."""
+        ready, learned_for = False, None
         while True:
-            time.sleep(5)
-            if not (events.hub and events.hub.connected):
-                ready = False
+            time.sleep(2)
+            hub = events.hub
+            if not (hub and hub.connected):
+                ready, learned_for = False, None
                 continue
-            if self.scan_state["state"] == "scanning":
+            if self.scan_state["state"] == "scanning" or hub.recording():
                 continue
+            active = (hub.cache.get("/lens/cameras/active") or {}).get("id")
+            if ready and active == learned_for:
+                continue  # nothing new; no requests to the phone
             try:
                 with self.lock:
                     if not ready:
                         self._setup()
                         ready = True
-                    self._learn_active()
+                    if self._learn_active():
+                        learned_for = active
             except Exception as e:
                 print("profile:", e)
 
