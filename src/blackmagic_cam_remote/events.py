@@ -4,6 +4,8 @@ The app doesn't push every change (e.g. switching lens on the phone updates `/le
 `isActive` flags in `/lens/cameras`), so a second thread re-reads all properties over REST in a loop and publishes
 the ones that changed. That bounds how long the dashboard can show a stale value to one pass (~4 s). It pauses while
 the phone records.
+
+Nothing connects while nobody uses the dashboard (see activity.py); the websocket closes once idle.
 """
 import base64
 import http.client
@@ -16,7 +18,7 @@ import threading
 import time
 import urllib.request
 
-from . import config
+from . import activity, config
 from .adb import phone_host
 from .automation import automation
 from .util import recv_exact
@@ -87,11 +89,12 @@ class EventHub:
 
     def _run(self):
         while True:
+            activity.wait()
             try:
                 self._session()
             except Exception as e:
                 if self.connected:
-                    print("events: websocket closed:", e)
+                    print("events: websocket closed:", e, flush=True)
             self._status(False)
             self.retry.wait(1)
             self.retry.clear()
@@ -126,6 +129,8 @@ class EventHub:
         s.settimeout(20)
         buf = b""
         while True:
+            if not activity.active():
+                raise EOFError("nobody is using the dashboard")  # checked at least every 20 s
             try:
                 b0, b1 = recv_exact(s, 2)
             except (TimeoutError, socket.timeout):

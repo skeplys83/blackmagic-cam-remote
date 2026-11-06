@@ -29,6 +29,7 @@
 | `adb.py` | Finding/reconnecting the phone (`adb_serial`), `adb()` wrapper, phone IP, scrcpy-server location, pairing identity |
 | `util.py` | `recv_exact`, `free_port` |
 | `mdns.py` | Own mDNS/DNS-SD query for the phone's `_adb-tls-pairing` / `_adb-tls-connect` services (Debian's adb in the image has no mDNS) |
+| `activity.py` | Whether anyone uses the dashboard (open `/events` streams, recent `/api` requests, recording); background work waits on it |
 | `readiness.py` | Live setup state: device tracking, foreground app (logcat events), API probe, periodic full checks; pushed via `/events` |
 | `setup.py` | The checks (`setup_status`), QR/code pairing, connect, launch app |
 | `webserver.py` | HTTP server and routes, host/origin checks, login, static files, SSE, live-view relay, clip ranges |
@@ -112,6 +113,13 @@ the phone's known IP (`setup.open_ports`, at most once a minute) hands each open
 Capabilities are read once per connection (`profile.py` hardware part) and when the active lens changes. Current
 values the app doesn't push are re-read in loops (REST re-read in `events.py`, color space in `recformat.py`); all of
 them pause while the phone records.
+
+### Idle
+Background work towards the phone runs only while someone uses the dashboard (`activity.py`): an open `/events`
+stream, an `/api` request in the last minute, or the phone recording (so automation can undo screen off and Do Not
+Disturb). One minute after the last viewer leaves, the camera websocket closes and readiness stops its checks, API
+probe and logcat stream and forgets its state; that also stops reconnect attempts and port scans. Only adb's server
+and its device-tracking socket stay open. The next `/events` stream wakes everything and gets fresh checks.
 
 ### QR pairing
 The QR encodes `WIFI:T:ADB;S:<name>;P:<password>;;`. The phone then opens a pairing port. The helper finds it via

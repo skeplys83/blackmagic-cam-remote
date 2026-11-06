@@ -12,7 +12,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-from . import auth, config, events, profile, readiness
+from . import activity, auth, config, events, profile, readiness
 from .adb import phone_host
 from .mirror import PRESETS, T_REPLACED, Mirror, take_over
 from .phone import orientation, phone_status, viewport
@@ -101,6 +101,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self._json({"error": str(e)}, code)
 
     def _proxy(self):
+        activity.touch()  # scripts using only the REST proxy keep the helper awake too
         try:
             host = phone_host()
         except Exception as e:
@@ -250,6 +251,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.send_header("Connection", "close")
         self.end_headers()
         self.close_connection = True
+        activity.enter()  # wakes the phone checks and the camera websocket if they were idle
         try:
             if state:
                 self.wfile.write(f"event: setup\ndata: {json.dumps(state)}\n\n".encode())
@@ -271,6 +273,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         finally:
             events.hub.unsubscribe(q)
             readiness.readiness.unsubscribe(q)
+            activity.leave()
 
     def _local_write(self):
         u = urllib.parse.urlparse(self.path)

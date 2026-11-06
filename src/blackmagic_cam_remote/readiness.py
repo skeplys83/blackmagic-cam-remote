@@ -9,6 +9,8 @@ Nothing here polls the phone quickly:
   - everything else (tools, app installed, port owner, network): setup_status() every 10 s and right after
     any change above.
 The combined state is what /setup returns and /events pushes ("setup" events), and what decides setup screen vs. dashboard.
+While nobody uses the dashboard (activity.py) only the device-tracking stream stays open; everything else stops and
+the state is forgotten, so the first viewer gets fresh checks.
 """
 import queue
 import socket
@@ -17,7 +19,7 @@ import threading
 import time
 import urllib.request
 
-from . import config, events
+from . import activity, config, events
 from .adb import phone_host
 from .setup import _check, foreground_app, setup_status
 from .util import recv_exact
@@ -38,6 +40,7 @@ class Readiness:
         self.state = None
         self.recheck = threading.Event()
         self.watching = None       # serial whose foreground is being watched
+        self.logcat = None         # its logcat process
         for target in (self._track_devices, self._full_checks, self._foreground_recheck, self._api_probe):
             threading.Thread(target=target, daemon=True).start()
 
@@ -175,12 +178,15 @@ class Readiness:
             self.recheck.set()
 
     def _foreground_loop(self, serial):
-        self._query_foreground()
         tags = ["wm_on_top_resumed_gained_called:I", "wm_on_top_resumed_lost_called:I",
                 "wm_on_resume_called:I", "wm_on_paused_called:I", "*:S"]
         while self.watching == serial:
-            p = subprocess.Popen(["adb", "-s", serial, "logcat", "-b", "events", "-T", "1", *tags],
-                                 stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
+            activity.wait()
+            if self.watching != serial:
+                break
+            self._query_foreground()
+            p = self.logcat = subprocess.Popen(["adb", "-s", serial, "logcat", "-b", "events", "-T", "1", *tags],
+                                               stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
             try:
                 for line in p.stdout:
                     if self.watching != serial:
@@ -200,6 +206,7 @@ class Readiness:
     def _foreground_recheck(self):
         while True:
             time.sleep(FOREGROUND_RECHECK_EVERY)
+            activity.wait()
             with self.lock:
                 dev = self._ready_device()
             if dev:
@@ -209,6 +216,7 @@ class Readiness:
 
     def _api_probe(self):
         while True:
+            activity.wait()
             with self.lock:
                 dev, front, was = self._ready_device(), self.in_front, self.api_up
             if not dev:
@@ -236,6 +244,10 @@ class Readiness:
 
     def _full_checks(self):
         while True:
+            if not activity.active():
+                self._go_idle()
+                activity.wait()
+                print("readiness: dashboard in use again; resuming phone checks", flush=True)
             try:
                 st = setup_status()
                 with self.lock:
@@ -246,6 +258,14 @@ class Readiness:
             self.recheck.wait(FULL_CHECK_EVERY)
             self.recheck.clear()
 
+
+    def _go_idle(self):
+        print("readiness: nobody is using the dashboard; pausing phone checks", flush=True)
+        with self.lock:
+            self.full = self.state = self.in_front = self.api_up = None
+            p = self.logcat
+        if p:
+            p.kill()  # _foreground_loop then waits for the next viewer
 
 
 readiness = None  # created by server.py
