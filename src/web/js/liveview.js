@@ -263,7 +263,8 @@ $('sound').onclick = () => {
 };
 
 setInterval(() => {
-  $('vstat').textContent = mirror.frames ? `${mirror.frames} fps · ${(mirror.bytes * 8 / 1e6).toFixed(1)} Mbit/s` : '';
+  // Never empty and fixed width in CSS: a changing width re-wrapped the toolbar and resized the live view.
+  $('vstat').textContent = mirror.frames ? `${mirror.frames} fps · ${(mirror.bytes * 8 / 1e6).toFixed(1)} Mbit/s` : '\u00a0';
   mirror.frames = 0; mirror.bytes = 0;
 }, 1000);
 setInterval(() => { if (dashboardOn && mirror.crop === 'viewport') fetchViewport(); }, 15000);

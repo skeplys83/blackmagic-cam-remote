@@ -73,7 +73,6 @@ function render() {
 
   const sys = P['/system'], pow = P['/camera/power'], media = P['/media/workingset'];
   const vf = P['/system/videoFormat'] || sys?.videoFormat, cf = P['/system/codecFormat'] || sys?.codecFormat; // the /system event isn't shaped like REST /system
-  if (vf && cf) $('fmt').textContent = `${vf.name.replace(' @ ', ' ')} ${cf.codec.split(':')[0]}`; // narrow sidebar: wraps per word
   if (pow) $('bat').textContent = pow.batteries?.[0] ? pow.batteries[0].chargeRemainingPercent + '%' : pow.source;
   if (media) { const d = media.workingset.find(w => w.activeDisk) || media.workingset[0]; $('left').textContent = fmtMins(d?.remainingRecordTime); }
 
@@ -129,7 +128,7 @@ function render() {
     }
     // The active lens comes from its own property: the app doesn't update the isActive flags in the list on a switch.
     const act = P['/lens/cameras/active'] || lenses.cameras.find(c => c.isActive);
-    if (act) { setSeg('lenses', act.id); $('lensNow').textContent = `${act.facing === 'front' ? 'Front' : act.zoomFactor} · ${act.focalLength}mm`; }
+    if (act) setSeg('lenses', act.id);
   }
 
   renderFormat(); renderMonitoring(); renderPresets(); renderQuick(); renderAudio(); renderProfile();

@@ -21,10 +21,14 @@
       <span class="pill" id="livePhone">Phone –</span>
       <span class="pill" id="liveApp">App –</span>
     </div>
-    <div class="stat"><b>Format</b><span id="fmt">–</span></div>
     <div class="stat"><b>Battery</b><span id="bat">–</span></div>
     <div class="stat"><b>Rec left</b><span id="left">–</span></div>
-    <div class="stat"><b>Lens</b><span id="lensNow">–</span></div>
+    <div class="stat"><b>Temp</b><span id="sbTemp">–</span></div>
+    <div class="stat"><b>Wi-Fi</b><span id="sbWifi">–</span></div>
+    <div class="sbtns">
+      <button class="btn small" id="screenToggle" title="Turns only the phone's display panel off; the camera keeps running. A back gesture on the phone turns it on again.">Screen off</button>
+      <button class="btn small" id="capScan" title="Switches through all lenses to learn what each can do, then restores your settings. Not while recording.">Scan lenses</button>
+    </div>
   </header>
   </aside>
 
@@ -220,12 +224,10 @@
       </div>
       <div class="row"><label class="check"><input type="checkbox" id="autoScreen"> Phone screen off while recording</label></div>
       <div class="row"><label class="check"><input type="checkbox" id="autoDnd"> Do Not Disturb while recording</label></div>
-      <div class="row"><button class="btn" id="screenOff">Screen off now</button><button class="btn" id="screenOn">Screen on</button></div>
-      <p class="note" style="margin-top:4px">Screen off turns only the display panel off; the camera keeps running and touches still reach the app. A back gesture on the phone (swipe in from a screen edge) turns it on again.</p>
+      <p class="note" style="margin-top:4px">Screen off turns only the display panel off; the camera keeps running and touches still reach the app. A back gesture on the phone (swipe in from a screen edge) turns it on again. The screen button is in the left bar.</p>
       <h3 class="sub">Capabilities <span class="hint" id="capPhone"></span></h3>
       <div class="scrollx"><table class="mon cap" id="capTable"><tbody><tr><td>Learning…</td></tr></tbody></table></div>
-      <div class="row"><button class="btn" id="capScan">Scan all lenses</button><span class="hint" id="capStatus"></span></div>
-      <p class="note">Hardware facts come from Android; formats and frame rates from Blackmagic Camera, learned for each lens while it's active. The scan switches through all lenses (a few seconds each) and then restores your settings. Not while recording.</p>
+      <p class="note">Hardware facts come from Android; formats and frame rates from Blackmagic Camera, learned for each lens while it's active. <i>Scan lenses</i> in the left bar switches through all lenses (a few seconds each) and then restores your settings. <span id="capStatus"></span></p>
     </section>
     <section class="a-rec">
       <h2>Recordings <span class="grow"></span><button class="btn small" id="clipsRefresh">Refresh</button></h2>

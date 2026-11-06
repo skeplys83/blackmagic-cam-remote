@@ -62,7 +62,7 @@ section h2 .grow { margin-left: auto; }
 #view { display: block; width: 100%; height: 100%; }
 #stageMsg { position: absolute; inset: 0; display: grid; place-items: center; color: var(--dim); text-align: center; padding: 16px; }
 .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin-top: 12px; }
-.toolbar .grow { margin-left: auto; color: var(--dim); font-variant-numeric: tabular-nums; font-size: 12px; }
+.toolbar .grow { margin-left: auto; color: var(--dim); font-variant-numeric: tabular-nums; font-size: 12px; width: 15ch; text-align: right; white-space: nowrap; }
 
 /* Record button floats over the live view, bottom centre, on a rounded dark box. */
 .recbox { position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%); z-index: 2;
@@ -282,3 +282,8 @@ table.cap td.no { color: var(--dim); }
 .lensgrid .lenscol h4 { margin: 0; font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--dim); }
 .lensgrid .lenscol .btn { width: 100%; }
 #fmtLensHint ul { margin: 2px 0 0; padding-left: 18px; }
+
+/* Left bar buttons */
+.sbtns { display: flex; flex-direction: column; gap: 6px; }
+.sbtns .btn { width: 100%; padding-left: 4px; padding-right: 4px; font-size: 11px; white-space: normal; line-height: 1.15; }
+@media (max-width: 900px) { .sbtns { flex-direction: row; } .sbtns .btn { width: auto; } }

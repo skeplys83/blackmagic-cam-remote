@@ -252,6 +252,12 @@ async function pollPhone() {
     $('phBattery').textContent = `${p.battery.level}%${p.battery.charging ? ' · charging' : ''}`;
     $('phBattery').className = !p.battery.charging && p.battery.level <= 15 ? 'bad' : !p.battery.charging && p.battery.level <= 30 ? 'warn' : '';
     $('phScreen').textContent = `${p.screenOff ? 'off' : 'on'} · DND ${p.dnd ? 'on' : 'off'}`;
+    // Left bar: short forms
+    $('sbTemp').textContent = t != null ? `${Math.round(t)} °C` : '–'; $('sbTemp').className = $('phTemp').className;
+    $('sbWifi').textContent = w.rssi != null ? q : 'off'; $('sbWifi').className = $('phWifi').className; $('sbWifi').title = $('phWifi').textContent;
+    state.screenOff = p.screenOff;
+    $('screenToggle').textContent = p.screenOff ? 'Screen on' : 'Screen off';
+    $('screenToggle').classList.toggle('active', !!p.screenOff);
   } catch (e) { $('phTemp').textContent = '–'; $('phScreen').textContent = 'adb not connected'; }
 }
 
@@ -272,8 +278,7 @@ async function setScreen(on) {
   } catch (e) { toast('Screen: ' + e.message); }
   pollPhone();
 }
-$('screenOff').onclick = () => setScreen(false);
-$('screenOn').onclick = () => setScreen(true);
+$('screenToggle').onclick = () => setScreen(!!state.screenOff); // off → turn on, on → turn off
 
 // ---------- quick settings: stabilization, proxy recording, exposure tools ----------
 
@@ -370,7 +375,7 @@ function renderProfile() {
   const scan = pr.scan || {};
   $('capStatus').textContent = scan.state === 'idle' ? (pr.scanned ? 'Last scan: ' + new Date(pr.scanned).toLocaleString() : '') : scan.message;
   $('capScan').disabled = scan.state === 'scanning' || state.recording;
-  $('capScan').textContent = scan.state === 'scanning' ? 'Scanning…' : 'Scan all lenses';
+  $('capScan').textContent = scan.state === 'scanning' ? 'Scanning…' : 'Scan lenses';
 }
 $('capScan').onclick = async () => {
   try {
