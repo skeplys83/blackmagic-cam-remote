@@ -6,6 +6,8 @@
 
 <p align="center">Found a problem? Please <a href="https://github.com/skeplys83/blackmagic-cam-remote/issues">open an issue</a>.</p>
 
+<img width="1904" height="3194" alt="dashboard" src="https://github.com/user-attachments/assets/68cc7189-6fea-4690-9ad3-7796a12215f2" />
+
 > Not affiliated with or endorsed by Blackmagic Design. "Blackmagic Camera" is their app; this project only talks
 > to the HTTP API the app offers on your local network, plus Android's standard debugging tools.
 
