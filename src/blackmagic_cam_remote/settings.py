@@ -10,7 +10,7 @@ TOGGLES = ("screenOffWhileRecording", "dndWhileRecording")
 class Settings:
     def __init__(self):
         self.lock = threading.Lock()
-        self.values = {"screenOffWhileRecording": False, "dndWhileRecording": False, "lastAddress": "", "phoneIp": ""}
+        self.values = {"screenOffWhileRecording": True, "dndWhileRecording": False, "lastAddress": "", "phoneIp": ""}
         try:
             self.values.update(json.loads(config.SETTINGS_FILE.read_text()))
         except (OSError, ValueError):
