@@ -30,8 +30,8 @@ Tile headings: 12px, uppercase, `letter-spacing: .08em`, `--dim`.
 ```
 ┌──────┬──────────────────────────────────────────┬───────────────┐
 │ icon │ Live view tile (fits the window height)   │ Lens & zoom   │
-│ ──── │  heading · centered red timecode          │ Rec. format   │
-│phone │  picture (exact aspect, no bars)          │ Focus         │
+│ ──── │  heading · centered red timecode          │ Focus         │
+│phone │  picture (exact aspect, no bars)          │ Rec. format   │
 │ info │  toolbar: view, sound, rotation, preview  │               │
 ├──────┼──────────────┬──────────────┬────────────┬───────────────┤
 │      │ Exposure     │ White bal.   │ Audio      │ Phone         │
