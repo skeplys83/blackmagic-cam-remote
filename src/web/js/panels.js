@@ -256,7 +256,8 @@ async function pollPhone() {
     $('sbTemp').textContent = t != null ? `${Math.round(t)} °C` : '–'; $('sbTemp').className = $('phTemp').className;
     $('sbWifi').textContent = w.rssi != null ? q : 'off'; $('sbWifi').className = $('phWifi').className; $('sbWifi').title = $('phWifi').textContent;
     state.screenOff = p.screenOff;
-    $('screenToggle').textContent = p.screenOff ? 'Screen on' : 'Screen off';
+    $('sbStorage').textContent = p.storage ? `${Math.round(p.storage.freeBytes / 1e9)} GB free` : '–'; $('sbStorage').className = $('phStorage').className;
+    $('screenToggle').textContent = p.screenOff ? 'Screen off' : 'Screen on'; // the current state; a click switches it
     $('screenToggle').classList.toggle('active', !!p.screenOff);
   } catch (e) { $('phTemp').textContent = '–'; $('phScreen').textContent = 'adb not connected'; }
 }
