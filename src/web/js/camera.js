@@ -48,48 +48,33 @@ function startEvents() {
 }
 function stopEvents() {}
 
-// The timecode isn't always pushed while recording, so read it twice a second then.
-setInterval(async () => {
-  if (!dashboardOn || !state.recording) return;
-  try { P['/transports/0/timecode'] = await api('transports/0/timecode'); scheduleRender(); } catch {}
-}, 500);
-
 // Light safety net in case an event is missed.
 setInterval(() => { if (dashboardOn) refresh(['/transports/0/record', '/camera/power', '/media/workingset']); }, 10000);
 
-let lastTc = null; // the camera's timecode while not recording = where the next clip starts
-function tcFrames(t, fps) { // "HH:MM:SS:FF" (or ";" for drop frame) → frames
-  const m = /^(\d+):(\d+):(\d+)[:;.](\d+)$/.exec(t || ''); if (!m || !fps) return null;
-  return ((+m[1] * 60 + +m[2]) * 60 + +m[3]) * fps + +m[4];
+// Recording timer: time since recording started (the helper's `@recordStart`, ms since epoch), shown like the phone
+// as HH:MM:SS:FF with the project frame rate (three frame digits above 99 fps). The app's own timecode isn't usable:
+// at >99 fps its frame digits spill into the seconds, and with "Record Run" it continues across clips.
+function renderRecTimer() {
+  const start = P['@recordStart']?.at;
+  if (!state.recording || !start) return;
+  const fps = Math.round(+(P['/system/format']?.frameRate) || 30), ms = Math.max(0, Date.now() - start);
+  const p = (x, n = 2) => String(x).padStart(n, '0'), s = Math.floor(ms / 1000);
+  $('recTcText').textContent = `${p(Math.floor(s / 3600))}:${p(Math.floor(s / 60) % 60)}:${p(s % 60)}:${p(Math.floor(ms % 1000 * fps / 1000), fps > 99 ? 3 : 2)}`;
 }
-function fmtFrames(n, fps) {
-  const p = (x) => String(x).padStart(2, '0'), s = Math.floor(n / fps);
-  return `${p(Math.floor(s / 3600))}:${p(Math.floor(s / 60) % 60)}:${p(s % 60)}:${p(n % fps)}`;
-}
+setInterval(() => { if (dashboardOn) renderRecTimer(); }, 50);
 
 function render() {
   const online = P['@connected'] !== false && !!P['/transports/0/record'];
   setConn(online);
   const rec = P['/transports/0/record'];
   if (rec) {
-    if (rec.recording && !state.recording) state.tcStart = state.recording === false ? lastTc : null; // clip start (see below)
     state.recording = !!rec.recording;
     $('rec').classList.toggle('on', state.recording);
     $('rec').title = (state.recording ? 'Stop' : 'Start') + ' recording (space)';
     $('liveTile').classList.toggle('recording', state.recording); // red box + timecode while recording
     $('recTc').hidden = !state.recording;
   }
-  // Show how long the current clip runs. The camera's timecode doesn't start at zero per clip ("Record Run" continues
-  // from the previous clip, "Time of Day" is the clock), so count from its value when recording started. Opened in
-  // the middle of a recording, the start isn't known: then the camera's timecode is shown as is.
-  const tc = P['/transports/0/timecode'];
-  if (tc?.display) {
-    if (!state.recording) lastTc = tc.display;
-    const fps = Math.round(+(P['/system/format']?.frameRate) || 0);
-    const now = tcFrames(tc.display, fps), start = state.tcStart ? tcFrames(state.tcStart, fps) : null;
-    $('recTcText').textContent = state.recording && now != null && start != null && now >= start ? fmtFrames(now - start, fps) : tc.display;
-    $('recTc').title = 'Camera timecode ' + tc.display;
-  }
+  renderRecTimer();
 
   const sys = P['/system'], pow = P['/camera/power'], media = P['/media/workingset'];
   const vf = P['/system/videoFormat'] || sys?.videoFormat, cf = P['/system/codecFormat'] || sys?.codecFormat; // the /system event isn't shaped like REST /system

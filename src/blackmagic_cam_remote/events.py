@@ -67,7 +67,15 @@ class EventHub:
             except queue.Full:
                 pass
         if prop == "/transports/0/record" and isinstance(value, dict):
-            automation.on_record(bool(value.get("recording")))
+            recording = bool(value.get("recording"))
+            # When recording started (ms since epoch), for the page's timer: the app's own timecode can't be used
+            # for that (at >99 fps its frame digits spill into the seconds, and Record Run continues across clips).
+            started = self.cache.get("@recordStart") or {}
+            if recording and not started.get("at"):
+                self._publish("@recordStart", {"at": int(time.time() * 1000)})
+            elif not recording and started.get("at"):
+                self._publish("@recordStart", {"at": None})
+            automation.on_record(recording)
 
     def _status(self, connected):
         self.connected = connected
