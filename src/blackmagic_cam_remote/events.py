@@ -53,6 +53,10 @@ class EventHub:
             if q in self.clients:
                 self.clients.remove(q)
 
+    def publish(self, prop, value):
+        """Publish a value that doesn't come from the app (e.g. "@colorSpace")."""
+        self._publish(prop, value)
+
     def _publish(self, prop, value):
         with self.lock:
             self.cache[prop] = value

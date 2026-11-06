@@ -38,7 +38,7 @@
 | `automation.py` | On record start/stop: screen off, Do Not Disturb |
 | `phone.py` | Phone health (battery, temperature, Wi-Fi, storage), rotation, viewfinder position (UI dump) |
 | `recordings.py` | Clip list (folder + durations from the app's `/clips`), byte-range reads, ffmpeg thumbnails (cached in `data/cache`), delete via the media store |
-| `recformat.py` | Resolution changes via a temporary preset (the API alone reverts them) |
+| `recformat.py` | Resolution and color space changes via a temporary preset; color space options/current value from `dumpsys media.camera`, published as `@colorSpace` |
 | `auth.py`, `tls.py` | Optional password login (signed cookie), optional HTTPS (self-signed or own cert) |
 
 ## Page (`src/web/js/`, loaded in this order)
@@ -80,6 +80,12 @@ the new viewfinder area and confirms it once the app's layout matches.
 ### Resolution change
 `POST /format/resolution`: save a temporary preset `bcr-resolution`, change `appsettings.resolutionSize` and
 `isOpenGate`, upload it, load it (stored name has no extension), delete it.
+
+### Color space
+Not in the REST API. `recformat.py` lists only the profiles every camera of the phone supports (Android's dynamic
+range profiles, plus Rec.709) and reads the active one from `dumpsys media.camera` every 3 s, published as the
+pseudo-property `@colorSpace` on `/events`. `POST /format/colorspace` applies a change through the temporary preset
+and waits until the camera stream reports it. Unsupported profiles can crash the app (see the API doc).
 
 ### Screen off while recording
 `automation.py` reacts to `/transports/0/record` changes: `screen.set(False)` (scrcpy `SET_DISPLAY_POWER`) and

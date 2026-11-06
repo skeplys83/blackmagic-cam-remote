@@ -1,4 +1,4 @@
-"""Changing the recording resolution.
+"""Changing the recording resolution and color space (neither is in the app's REST API).
 
 Blackmagic Camera (Android) accepts a new resolution on /system/format but reverts it about a second later: it
 keeps its own resolution and "Open Gate" settings and rebuilds the format from them. Presets carry those settings
@@ -6,14 +6,23 @@ keeps its own resolution and "Open Gate" settings and rebuilds the format from t
 state as a temporary preset, change its resolution fields, upload it, load it (the app stores the upload without
 the .bmcpreset extension), delete it.
 Everything else in the camera stays as it was, because the preset is a snapshot of the current state.
+
+Color space works the same way (appsettings.colorSpace), but only profiles the phone's cameras support may be set:
+an unsupported one can crash the app's video encoder in a loop, after which the app resets all its settings
+(seen with "Vendor Log HDR" on a Pixel 10). So the options come from Android's camera service: the 10-bit dynamic
+range profiles every camera lists (availableDynamicRangeProfilesMap), plus standard (Rec.709). The current value is
+the active stream's "Dynamic Range Profile" in `dumpsys media.camera`; a watcher publishes it as `@colorSpace`.
 """
 import json
+import re
+import threading
 import time
 import urllib.error
 import urllib.request
 
 from . import config
-from .adb import phone_host
+from . import events
+from .adb import adb, phone_host
 
 TEMP = "bcr-resolution"  # the page hides presets starting with "bcr-"
 
@@ -33,7 +42,11 @@ def _cleanup():
         _api("DELETE", f"presets/{name}")
 
 
-def set_resolution(width, height, open_gate):
+def _apply(change, done, what):
+    """Save the current state as a temporary preset, let change(appsettings) edit it, load it, wait for done()."""
+    status, raw = _api("GET", "transports/0/record")
+    if status == 200 and json.loads(raw).get("recording"):
+        raise RuntimeError("stop recording first")
     _cleanup()  # a leftover from an interrupted change would block saving
     status, _ = _api("PUT", f"presets/{TEMP}.bmcpreset")  # snapshot of the current settings
     if status >= 300:
@@ -43,8 +56,7 @@ def set_resolution(width, height, open_gate):
         if status != 200:
             raise RuntimeError(f"couldn't read the temporary preset ({status})")
         preset = json.loads(raw)
-        preset["appsettings"]["resolutionSize"] = f"{int(width)}x{int(height)}"
-        preset["appsettings"]["isOpenGate"] = bool(open_gate)
+        change(preset["appsettings"])
         _api("DELETE", f"presets/{TEMP}.bmcpreset")
         status, raw = _api("POST", "presets", json.dumps(preset, indent=2).encode(),
                            {"Content-Type": "application/octet-stream",
@@ -55,11 +67,107 @@ def set_resolution(width, height, open_gate):
         status, _ = _api("PUT", "presets/active", json.dumps({"preset": stored}).encode(), {"Content-Type": "application/json"})
         if status >= 300:
             raise RuntimeError(f"couldn't apply the change ({status})")
-        for _ in range(20):  # wait until the camera reports the new size
+        for _ in range(24):
             time.sleep(0.25)
-            status, raw = _api("GET", "system/videoFormat")
-            if status == 200 and (lambda f: (f["width"], f["height"]) == (int(width), int(height)))(json.loads(raw)):
-                return json.loads(raw)
-        raise RuntimeError("the camera didn't switch to the new resolution")
+            result = done()
+            if result is not None:
+                return result
+        raise RuntimeError(f"the camera didn't switch to the new {what}")
     finally:
         _cleanup()
+
+
+def set_resolution(width, height, open_gate):
+    def change(a):
+        a["resolutionSize"] = f"{int(width)}x{int(height)}"
+        a["isOpenGate"] = bool(open_gate)
+
+    def done():  # the camera reports the new size
+        status, raw = _api("GET", "system/videoFormat")
+        f = json.loads(raw) if status == 200 else {}
+        return f if (f.get("width"), f.get("height")) == (int(width), int(height)) else None
+
+    return _apply(change, done, "resolution")
+
+
+# ---------- color space ----------
+# Android dynamic range profile (CameraCharacteristics/DynamicRangeProfiles) → the app's preset value and a label.
+# Only these are offered; other app profiles (P3, sRGB, Log, HDR10(+), Dolby Vision) are untested or crash-prone.
+COLOR_SPACES = {1: (0, "Rec.709"), 2: (1, "HLG10 (BT.2020)")}
+_supported = None  # profile codes all cameras support, read once per connection
+
+
+def _dumpsys_camera(pattern, extra=""):
+    r = adb("shell", f"dumpsys media.camera | grep {extra} -E '{pattern}'", timeout=10)
+    return r.stdout.decode(errors="replace")
+
+
+def supported_profiles():
+    global _supported
+    if _supported is None:
+        out = _dumpsys_camera("availableDynamicRangeProfilesMap", "-A1")
+        # "android.request.availableDynamicRangeProfilesMap (c0013): int64[3]" then the values on the next line, one
+        # entry per camera; entries are (profile, compatible profiles, latency) triples. (The key's name also shows
+        # up in key lists, which don't have this shape.)
+        sets = [set([int(n) for n in re.findall(r"\d+", vals)][0::3])
+                for vals in re.findall(r"availableDynamicRangeProfilesMap \([0-9a-f]+\):[^\n]*\n\s*\[([^\]]*)\]", out)]
+        profiles = set.intersection(*sets) if sets else set()
+        _supported = sorted({1} | (profiles & set(COLOR_SPACES)))
+    return _supported
+
+
+def current_profile():
+    """The active camera stream's dynamic range profile, or None while no camera is open."""
+    m = re.search(r"Dynamic Range Profile: 0x([0-9a-fA-F]+)", _dumpsys_camera("Dynamic Range Profile", "-m1"))
+    return int(m.group(1), 16) if m else None
+
+
+def color_space_state():
+    cur = current_profile()
+    return {"current": COLOR_SPACES[cur][1] if cur in COLOR_SPACES else None,
+            "options": [COLOR_SPACES[p][1] for p in supported_profiles()]}
+
+
+def set_color_space(label):
+    profile = next((p for p in supported_profiles() if COLOR_SPACES[p][1] == label), None)
+    if profile is None:
+        raise ValueError(f"{label} isn't supported by this phone")
+    status, raw = _api("GET", "system/format")
+    if profile != 1 and status == 200 and not json.loads(raw).get("codec", "").startswith("H265"):
+        raise ValueError(f"{label} needs the H.265 codec")
+
+    def change(a):
+        a["colorSpace"] = COLOR_SPACES[profile][0]
+
+    def done():
+        return color_space_state() if current_profile() == profile else None
+
+    state = _apply(change, done, "color space")
+    _publish(state)
+    return state
+
+
+_last = None
+
+
+def _publish(state):
+    global _last
+    if state["current"] and state != _last and events.hub:
+        _last = state
+        events.hub.publish("@colorSpace", state)
+
+
+def watch(interval=3):
+    """Publish the color space as `@colorSpace` whenever it changes (also when changed on the phone)."""
+    def run():
+        global _supported, _last
+        while True:
+            time.sleep(interval)
+            if not (events.hub and events.hub.connected):
+                _supported = _last = None  # re-read after a reconnect (another phone, app update)
+                continue
+            try:
+                _publish(color_space_state())
+            except Exception:
+                pass
+    threading.Thread(target=run, daemon=True).start()

@@ -53,8 +53,17 @@ function renderFormat() {
   const off = $('fmtOff'), offs = offSpeedRates(f, cur);
   fillSelect(off, offs, (v) => offSpeedLabel(v, +f.frameRate));
   if (!fmtBusy && document.activeElement !== off) off.value = f.offSpeedEnabled ? String(f.offSpeedFrameRate) : 'off';
+  // Color space: options and current value come from the helper (`@colorSpace`, read from Android's camera service);
+  // HLG needs a 10-bit codec, which on these phones means H.265.
+  const cspace = P['@colorSpace'], csel = $('fmtColor');
+  if (cspace) {
+    const opts = cspace.options.filter(o => o === 'Rec.709' || String(f.codec).startsWith('H265') || o === cspace.current);
+    fillSelect(csel, opts, (o) => o);
+    if (!state.colorChanging && document.activeElement !== csel) csel.value = cspace.current;
+  }
   const a = P['/system/audioCodec']; $('fmtAudio').textContent = a ? a.codec : '–';
   for (const id of ['fmtRes', 'fmtFps', 'fmtCodec', 'fmtOff']) $(id).disabled = state.recording || !!fmtBusy;
+  $('fmtColor').disabled = state.recording || !!fmtBusy || !!state.colorChanging || !cspace;
   $('fmtNote').hidden = !state.recording;
 }
 
@@ -109,6 +118,17 @@ $('fmtRes').onchange = async (e) => {
     toast('Resolution: ' + j.name);
   } catch (err) { toast('Resolution: ' + err.message); refresh(['/system/format']); }
   sel.disabled = false; state.resChanging = false;
+};
+// Color space goes through the helper (temporary preset, like resolution); it confirms the change on the phone.
+$('fmtColor').onchange = async (e) => {
+  const sel = e.target, want = sel.value; sel.blur();
+  state.colorChanging = true; renderFormat(); toast('Changing color space…');
+  try {
+    const r = await fetch('/format/colorspace', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ colorSpace: want }) });
+    const j = await r.json(); if (!r.ok) throw new Error(j.error);
+    P['@colorSpace'] = j; toast('Color space: ' + j.current);
+  } catch (err) { toast('Color space: ' + err.message); }
+  state.colorChanging = false; renderFormat();
 };
 $('fmtFps').onchange = (e) => { putFormat({ frameRate: e.target.value }); e.target.blur(); };
 $('fmtCodec').onchange = (e) => { putFormat({ codec: e.target.value }); e.target.blur(); };

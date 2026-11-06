@@ -78,7 +78,7 @@ Details: [docs/architecture/overview.md](docs/architecture/overview.md).
 - **Live view**: viewfinder only or full screen, rotation (auto or fixed), sound on/off, four stream qualities
   (24 fps max), red frame and timecode while recording.
 - **Main controls** beside it: record, lens selection, zoom, image stabilization, recording format (resolution,
-  frame rate, codec, off-speed with the resulting slow-motion/fast-motion factor per lens, proxy files), focus (continuous, manual, focus once).
+  frame rate, codec, color space (what the phone supports), off-speed with the resulting slow-motion/fast-motion factor per lens, proxy files), focus (continuous, manual, focus once).
 - **Settings tiles**: exposure (auto/manual, ISO, shutter as speed or angle, false color / zebra), white balance,
   audio (input and gain per channel), phone (temperature, Wi-Fi, storage, battery; screen off and Do Not Disturb
   while recording), monitoring overlays for the phone screen and HDMI out, presets, recordings (thumbnails,

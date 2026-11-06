@@ -45,6 +45,7 @@ but the Android implementation differs from them in many places. **Check here fi
 | `/video/gain`, `/system/dynamicRange`, `/monitoring/*/brightness` | 501 |
 | `PUT /system/format` | GET shape. **Change one thing per PUT** and wait for it (~0.3–1 s); PUTs changing several fields get misapplied. **While off-speed is on, `frameRate` is written into the off-speed rate** and the project rate can't change: turn off-speed off, set the frame rate, turn it back on with `offSpeedFrameRate`. Off-speed limits depend on lens and resolution: `min/maxOffSpeedFrameRate` in `/system/format` (live) and per entry in `/system/supportedFormats` (Pixel 10: 1x/0.6x reach 240 at 1080p/720p, 4.3x and front 60, 4K 30–60). Any whole rate up to 60 works; above 60 only the format's high-speed `frameRates` (120, 240), others → 400. **Resolution reverts after ~1 s** (the app rebuilds from its own resolution + Open Gate settings); use a preset instead (below) |
 | `PUT /system/videoFormat` | Same revert for resolution |
+| Color space | **Not in the REST API.** Presets carry it as `appsettings.colorSpace`; loading a preset applies it (see below) |
 | `/system/audioCodec` | Read only (AAC) |
 | `GET/PUT/DELETE /presets/{name}.bmcpreset` | PUT saves the current state; GET returns JSON (`appsettings` incl. `resolutionSize` "WxH", `isOpenGate`) |
 | `POST /presets` | Raw file, `Content-Type: application/octet-stream`, `Content-Disposition: attachment; filename="x.bmcpreset"`. Stored **without** the extension (`presetAdded`). Uploading does not apply it |
@@ -60,6 +61,18 @@ but the Android implementation differs from them in many places. **Check here fi
 | `/slates/...` | Readable (reel, scene, take, …); writes via `/slates/{target}/{category}/{property}`, untested |
 | `GET /clips` | Per clip: `videoFormat.name` (file name without `.mp4`), `frameCount`, `videoFormat.frameRate`, `durationTimecode`, `filePath` (a `content://media/…` URI). The list lags behind deletions |
 | `/camera/motionSensor/euler` | `roll ≈ atan2(gy, gx)` in radians |
+
+## Color space
+- Preset values (`appsettings.colorSpace`): 0 Rec.709, 1 BT.2020 HLG10, 2 P3 D65, 3 Blackmagic Log HDR, 14 sRGB,
+  15 P3 D60, 18 HDR10+, 19 Dolby Vision PQ, 20 Vendor Log HDR, 21 Dolby Vision HLG (HDR10 has none that loads back).
+  `colorSpaceTag` is the container tag (0 Rec.709, 1 Rec.2020); leave it.
+- **Only set profiles the phone supports.** Unsupported ones are usually reset to Rec.709, but Vendor Log HDR (20) on
+  a Pixel 10 at 1080p/120 crashed the app's video encoder in a loop; restarting the app then reset **all** its
+  settings (including *Enable HTTP Server*). Recovery: turn the HTTP server back on in the app, load a saved preset.
+- What the phone supports: `dumpsys media.camera`, `android.request.availableDynamicRangeProfilesMap` per camera
+  (triples of profile, compatible profiles, latency; profile 2 = HLG10, 4 = HDR10, 8 = HDR10+), plus standard (1).
+  The app's own menu matches it (Pixel 10: Rec.709 and BT2020 HLG10, with H.265).
+- Current value: the active stream's `Dynamic Range Profile: 0x1` (standard) / `0x2` (HLG10) in the same dump.
 
 ## Other phones
 Only a Pixel 10 has been tested. The page takes device-specific values from the app wherever it reports them:
