@@ -284,6 +284,7 @@ table.cap td.no { color: var(--dim); }
 #fmtLensHint ul { margin: 2px 0 0; padding-left: 18px; }
 
 /* Left bar buttons */
-.sbtns { display: flex; flex-direction: column; gap: 6px; }
-.sbtns .btn { width: 100%; min-height: 84px; padding: 10px 4px; font-size: 11px; white-space: normal; line-height: 1.15; }
-@media (max-width: 900px) { .sbtns { flex-direction: row; } .sbtns .btn { width: auto; } }
+/* contain: the buttons don't widen the bar; their text (e.g. "Scanning…") wraps inside the width the stats give. */
+.sbtns { display: flex; flex-direction: column; gap: 6px; contain: inline-size; }
+.sbtns .btn { width: 100%; min-height: 84px; padding: 10px 4px; font-size: 11px; white-space: normal; overflow-wrap: anywhere; line-height: 1.15; }
+@media (max-width: 900px) { .sbtns { flex-direction: row; contain: none; } .sbtns .btn { width: auto; } }
