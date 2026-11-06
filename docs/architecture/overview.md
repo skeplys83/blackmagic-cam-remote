@@ -32,7 +32,7 @@
 | `readiness.py` | Live setup state: device tracking, foreground app (logcat events), API probe, periodic full checks; pushed via `/events` |
 | `setup.py` | The checks (`setup_status`), QR/code pairing, connect, launch app |
 | `webserver.py` | HTTP server and routes, host/origin checks, login, static files, SSE, live-view relay, clip ranges |
-| `events.py` | One websocket to the app's event API; caches all properties and fans out changes |
+| `events.py` | One websocket to the app's event API plus a REST re-read loop for changes it doesn't push; caches and fans out |
 | `mirror.py` | Live view session: scrcpy-server video (H.264) + raw PCM audio, framed for the page; one stream at a time |
 | `screen.py` | Display power via scrcpy control channel; back-gesture watcher (`getevent`) |
 | `automation.py` | On record start/stop: screen off, Do Not Disturb |
@@ -63,7 +63,11 @@ dashboard only while `ready` is true; otherwise it shows the setup screen and st
 
 ### Camera state
 `events.py` subscribes to every property from `/control/api/v1/event/list` over the app's websocket. `/events`
-sends a `snapshot` and then one message per change. The page keeps them in `P` and re-renders. Writes go through
+sends a `snapshot` and then one message per change. Because the app doesn't push every change, a second thread in
+`events.py` re-reads all readable properties over REST (one kept-open connection; a pass of ~80 reads takes ~2 s,
+then a 2 s pause) and publishes a value when its REST reading changed and no event arrived during the read. So a value
+the app fails to push is stale for at most ~4 s, and differing event/REST shapes don't flip back and forth.
+The page keeps them in `P` and re-renders. Writes go through
 `/api/*` (REST). After a write the page re-reads that property only if no pushed update arrived in 700 ms (a late
 read could overwrite a newer pushed value).
 
