@@ -46,7 +46,7 @@ but the Android implementation differs from them in many places. **Check here fi
 | `PUT /system/format` | GET shape. **Change one thing per PUT** and wait for it (~0.3–1 s); PUTs changing several fields get misapplied. **While off-speed is on, `frameRate` is written into the off-speed rate** and the project rate can't change: turn off-speed off, set the frame rate, turn it back on with `offSpeedFrameRate`. Off-speed limits depend on lens and resolution: `min/maxOffSpeedFrameRate` in `/system/format` (live) and per entry in `/system/supportedFormats` (Pixel 10: 1x/0.6x reach 240 at 1080p/720p, 4.3x and front 60, 4K 30–60). Any whole rate up to 60 works; above 60 only the format's high-speed `frameRates` (120, 240), others → 400. **Resolution reverts after ~1 s** (the app rebuilds from its own resolution + Open Gate settings); use a preset instead (below) |
 | `PUT /system/videoFormat` | Same revert for resolution |
 | Color space | **Not in the REST API.** Presets carry it as `appsettings.colorSpace`; loading a preset applies it (see below) |
-| `/system/audioCodec` | Read only (AAC) |
+| `PUT /system/audioCodec` | `{"codec": "AAC"}` or `{"codec": "PCM"}` (uncompressed); anything else is refused. There's no list endpoint |
 | `GET/PUT/DELETE /presets/{name}.bmcpreset` | PUT saves the current state; GET returns JSON (`appsettings` incl. `resolutionSize` "WxH", `isOpenGate`) |
 | `POST /presets` | Raw file, `Content-Type: application/octet-stream`, `Content-Disposition: attachment; filename="x.bmcpreset"`. Stored **without** the extension (`presetAdded`). Uploading does not apply it |
 | `PUT /presets/active` | `{"preset": "<stored name>"}` applies all settings, including resolution and lens. A preset saved with `PUT /presets/x.bmcpreset` is stored as `x.bmcpreset` (with extension), an uploaded one as `x` |
@@ -57,7 +57,7 @@ but the Android implementation differs from them in many places. **Check here fi
 | `PUT /audio/channel/N/input` | Current input reads `"PhoneMicrophone"` but only `"Phone Microphone"` is accepted (the input list uses the spaced form) |
 | `PUT /audio/channel/N/level` | Needs all three fields `{"gain","normalized","normalised"}` |
 | `/audio/channel/N/{padding,lowCutFilter,phantomPower}` | 400 (no such hardware) |
-| `PUT /transports/0/proxyRecording` | `{"enabled": bool}` |
+| `PUT /transports/0/proxyRecording` | `{"enabled": bool}`. Proxies (a small second copy of each clip for editing) go to a `Proxy` subfolder of the clip folder |
 | `/slates/...` | Readable (reel, scene, take, …); writes via `/slates/{target}/{category}/{property}`, untested |
 | `GET /clips` | Per clip: `videoFormat.name` (file name without `.mp4`), `frameCount`, `videoFormat.frameRate`, `durationTimecode`, `filePath` (a `content://media/…` URI). The list lags behind deletions |
 | `/camera/motionSensor/euler` | `roll ≈ atan2(gy, gx)` in radians |
@@ -91,6 +91,8 @@ would need a WebRTC stack (no standard-library option).
 ## adb facts used by the helper
 - Per-lens hardware: `dumpsys media.camera` static info, one block per logical camera (`internal/N`) and per
   physical lens (`Physical camera K characteristics`); the app's lens ids are these camera ids on a Pixel 10.
+- Skin temperature: `dumpsys thermalservice`, sensors with `mType=3` (TYPE_SKIN); the name varies (Pixel:
+  `VIRTUAL-SKIN`). Wi-Fi IP: interface `wlan*`, else the first non-mobile, non-loopback one.
 - Display rotation: `dumpsys display | grep -m1 -o 'orientation=[0-9]'`.
 - Foreground app: `dumpsys activity activities | grep topResumedActivity=`; live events via
   `logcat -b events` tags `wm_on_top_resumed_gained_called` / `_lost_called`.

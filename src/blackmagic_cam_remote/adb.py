@@ -43,11 +43,14 @@ def phone_host():
         return config.PHONE
     serial = adb_serial()
     if _phone_ip["serial"] != serial or not _phone_ip["ip"]:
-        out = adb("shell", "ip -4 -o addr show wlan0", timeout=10).stdout.decode(errors="replace")
-        m = re.search(r"inet (\d+\.\d+\.\d+\.\d+)", out)
-        if not m:
+        # Wi-Fi is wlan0 on most phones; otherwise take any other non-mobile, non-loopback IPv4 interface.
+        out = adb("shell", "ip -4 -o addr show", timeout=10).stdout.decode(errors="replace")
+        addrs = re.findall(r"^\d+:\s+(\S+)\s+inet (\d+\.\d+\.\d+\.\d+)", out, re.M)
+        wifi = [ip for dev, ip in addrs if dev.startswith("wlan")] or \
+               [ip for dev, ip in addrs if not dev.startswith(("lo", "rmnet", "ccmni", "dummy", "tun", "p2p"))]
+        if not wifi:
             raise RuntimeError("phone has no Wi-Fi address")
-        _phone_ip.update(serial=serial, ip=m.group(1))
+        _phone_ip.update(serial=serial, ip=wifi[0])
     return _phone_ip["ip"]
 
 def adb(*args, **kw):

@@ -8,13 +8,14 @@ from .screen import screen
 THERMAL = ["none", "light", "moderate", "severe", "critical", "emergency", "shutdown"]
 
 def phone_status():
-    cmd = ("dumpsys battery; echo @@; dumpsys thermalservice | grep -E 'Thermal Status|mName=VIRTUAL-SKIN,'; echo @@; "
+    cmd = ("dumpsys battery; echo @@; dumpsys thermalservice | grep -E 'Thermal Status|mType=3,'; echo @@; "
            "cmd wifi status | grep -m1 WifiInfo; echo @@; df -k /storage/emulated | tail -1; echo @@; settings get global zen_mode")
     out = adb("shell", cmd, timeout=15).stdout.decode(errors="replace").split("@@")
     bat, therm, wifi, df, zen = (out + [""] * 5)[:5]
     g = lambda pat, txt: (re.search(pat, txt) or [None, None])[1]
     temp = g(r"temperature: (\d+)", bat)
-    skin = g(r"mValue=([\d.]+), mType=\S+, mName=VIRTUAL-SKIN,", therm)
+    # Android's skin temperature sensors have type 3 (TYPE_SKIN); names differ per phone (Pixel: VIRTUAL-SKIN).
+    skin = g(r"Temperature\{mValue=([\d.]+), mType=3,", therm)
     status = g(r"Thermal Status: (\d)", therm)
     rssi = g(r"RSSI: (-?\d+)", wifi)
     dfp = df.split()

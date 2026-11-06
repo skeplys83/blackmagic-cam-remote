@@ -62,8 +62,9 @@ function renderFormat() {
     if (!state.colorChanging && document.activeElement !== csel) csel.value = cspace.current;
   }
   lensHint(f);
-  const a = P['/system/audioCodec']; $('fmtAudio').textContent = a ? a.codec : '–';
-  for (const id of ['fmtRes', 'fmtFps', 'fmtCodec', 'fmtOff']) $(id).disabled = state.recording || !!fmtBusy;
+  const a = P['/system/audioCodec'], au = $('fmtAudio'); // the app takes "AAC" or "PCM" (see the API doc)
+  if (a && document.activeElement !== au) au.value = a.codec;
+  for (const id of ['fmtRes', 'fmtFps', 'fmtCodec', 'fmtOff', 'fmtAudio']) $(id).disabled = state.recording || !!fmtBusy;
   $('fmtColor').disabled = state.recording || !!fmtBusy || !!state.colorChanging || !cspace;
   $('fmtNote').hidden = !state.recording;
 }
@@ -131,6 +132,7 @@ $('fmtColor').onchange = async (e) => {
   } catch (err) { toast('Color space: ' + err.message); }
   state.colorChanging = false; renderFormat();
 };
+$('fmtAudio').onchange = (e) => { send('system/audioCodec', 'PUT', { codec: e.target.value }, 'Audio codec'); e.target.blur(); };
 $('fmtFps').onchange = (e) => { putFormat({ frameRate: e.target.value }); e.target.blur(); };
 $('fmtCodec').onchange = (e) => { putFormat({ codec: e.target.value }); e.target.blur(); };
 $('fmtOff').onchange = (e) => {
@@ -387,5 +389,5 @@ function lensHint(f) {
     return fm.length ? `${l.name}: up to ${maxBy(fm, x => x.offSpeed[1])} fps` : `${l.name}: not at this resolution`;
   });
   el.hidden = !parts.length;
-  el.textContent = 'Other lenses at this resolution · ' + parts.join(' · ');
+  el.innerHTML = 'Other lenses at this resolution:<ul>' + parts.map(p => `<li>${p}</li>`).join('') + '</ul>';
 }

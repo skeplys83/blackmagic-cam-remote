@@ -120,7 +120,12 @@ function render() {
     const key = avail.map(c => c.id).join(',');
     if (box.dataset.key !== key) {
       box.dataset.key = key;
-      box.innerHTML = avail.map(c => `<button class="btn" data-v="${c.id}">${c.facing === 'front' ? 'Front' : c.zoomFactor} · ${c.focalLength}mm</button>`).join('');
+      // Back lenses on the left, front on the right, each sorted by focal length.
+      const col = (facing, title) => {
+        const cams = avail.filter(c => (c.facing === 'front') === (facing === 'front')).sort((a, b) => a.focalLength - b.focalLength);
+        return cams.length ? `<div class="lenscol"><h4>${title}</h4>${cams.map(c => `<button class="btn" data-v="${c.id}">${c.zoomFactor} · ${c.focalLength}mm</button>`).join('')}</div>` : '';
+      };
+      box.innerHTML = col('back', 'Back') + col('front', 'Front');
     }
     // The active lens comes from its own property: the app doesn't update the isActive flags in the list on a switch.
     const act = P['/lens/cameras/active'] || lenses.cameras.find(c => c.isActive);
