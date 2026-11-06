@@ -15,6 +15,13 @@ but the Android implementation differs from them in many places. **Check here fi
   the response carries current `values`, then `{"type":"event","data":{"action":"propertyValueChanged",...}}`.
   Event payloads differ slightly from REST (e.g. focus assist mode `"Colored Lines"` vs `"ColoredLines"`,
   `/transports/0/record` without `clipName`, `/system` shaped like `/system/format`).
+- **Not every change is pushed.** Switching lens on the phone pushes `/lens/cameras/active`, but `/lens/cameras` keeps
+  the old `isActive` flags. The helper therefore also re-reads every property over REST in a loop (see the
+  architecture doc); use the most specific property (`/lens/cameras/active`, not the list's flags).
+- About 25 subscribable properties can't be read over REST on Android (501/404/400: gain, ND, color correction,
+  playback, XLR audio options); they come only from events, if at all.
+- The phone's FPS readout with off-speed on is "off-speed/project" (e.g. `15/120` = project 120, off-speed 15;
+  in presets `selectedPFR` / `selectedOFR`).
 - The phone screen is display `Device` in REST but `LCD` in events. Only `Device` and `HDMI` exist;
   `/monitoring/display` returns 500.
 

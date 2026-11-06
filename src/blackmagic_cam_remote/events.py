@@ -1,11 +1,18 @@
-"""Live camera state: one websocket to the app's event API, cached and fanned out to browsers."""
+"""Live camera state: one websocket to the app's event API, cached and fanned out to browsers.
+
+The app doesn't push every change (e.g. switching lens on the phone updates `/lens/cameras/active` but not the
+`isActive` flags in `/lens/cameras`), so a second thread re-reads all properties over REST in a loop and publishes
+the ones that changed. That bounds how long the dashboard can show a stale value to one pass (~4 s).
+"""
 import base64
+import http.client
 import json
 import os
 import queue
 import socket
 import struct
 import threading
+import time
 import urllib.request
 
 from . import config
@@ -23,7 +30,12 @@ class EventHub:
         self.lock = threading.Lock()
         self.connected = False
         self.retry = threading.Event()
+        self.props = []        # every property the app offers (from /event/list)
+        self.event_at = {}     # property -> time of its last pushed event
+        self.rest_seen = {}    # property -> last value read over REST (event and REST shapes can differ)
+        self.unreadable = set()
         threading.Thread(target=self._run, daemon=True).start()
+        threading.Thread(target=self._reconcile, daemon=True).start()
 
     def wake(self):
         """Retry the websocket now (e.g. the app's API just came back)."""
@@ -72,6 +84,7 @@ class EventHub:
         host = phone_host()
         with urllib.request.urlopen(f"https://{host}:{config.API_PORT}/control/api/v1/event/list", context=config.PHONE_SSL, timeout=5) as r:
             props = json.load(r)
+        self.props = props
         s = config.PHONE_SSL.wrap_socket(socket.create_connection((host, config.API_PORT), timeout=10), server_hostname=host)
         key = base64.b64encode(os.urandom(16)).decode()
         s.sendall((f"GET /control/api/v1/event/websocket HTTP/1.1\r\nHost: {host}:{config.API_PORT}\r\nUpgrade: websocket\r\n"
@@ -122,8 +135,63 @@ class EventHub:
                 data = msg.get("data") or {}
                 if msg.get("type") == "response":
                     for prop, value in (data.get("values") or {}).items():
+                        self.event_at[prop] = time.monotonic()
                         self._publish(prop, value)
                 elif data.get("action") == "propertyValueChanged":
+                    self.event_at[data.get("property")] = time.monotonic()
                     self._publish(data.get("property"), data.get("value"))
+
+    PASS_PAUSE = 2.0  # seconds between REST passes (a pass over ~80 properties takes ~2 s)
+
+    def _reconcile(self):
+        """Re-read every property over REST and publish what changed since the last read.
+
+        A value is published only when its REST reading changed (so differing event/REST shapes don't flip back and
+        forth) and no event arrived while it was being read (so an older reading never overwrites a newer event).
+        """
+        conn = None
+        while True:
+            time.sleep(self.PASS_PAUSE)
+            if not self.connected:
+                conn = None
+                self.rest_seen.clear()
+                self.unreadable.clear()
+                continue
+            try:
+                host = phone_host()
+                if conn is None or conn.host != host:
+                    conn = http.client.HTTPSConnection(host, config.API_PORT, context=config.PHONE_SSL, timeout=5)
+                for prop in list(self.props):
+                    if prop in self.unreadable or not self.connected:
+                        continue
+                    started = time.monotonic()
+                    conn.request("GET", "/control/api/v1" + prop.replace("/monitoring/LCD/", "/monitoring/Device/"))
+                    r = conn.getresponse()
+                    body = r.read()
+                    if r.status != 200:
+                        if r.status in (400, 404, 501):
+                            self.unreadable.add(prop)  # not implemented on this phone/app
+                        continue
+                    value = json.loads(body)
+                    first = prop not in self.rest_seen
+                    if not first and self.rest_seen[prop] == value:
+                        continue
+                    self.rest_seen[prop] = value
+                    if self.event_at.get(prop, 0) >= started:
+                        continue  # a pushed event is newer than this reading
+                    if first and self.cache.get(prop) is not None and not self._differs(prop, value):
+                        continue
+                    self._publish(prop, value)
+            except Exception:
+                if conn:
+                    conn.close()
+                conn = None
+
+    def _differs(self, prop, rest_value):
+        """First REST reading vs. the cached (event) value: compare only the fields both have."""
+        cached = self.cache.get(prop)
+        if isinstance(cached, dict) and isinstance(rest_value, dict):
+            return any(k in cached and cached[k] != v for k, v in rest_value.items())
+        return cached != rest_value
 
 hub = None

@@ -9,7 +9,7 @@ const FALLBACK = ['/system/videoFormat', '/system/codecFormat', '/system/format'
   '/lens/opticalImageStabilization', '/transports/0/proxyRecording', '/audio/channels',
   ...[0, 1].flatMap(n => [`/audio/channel/${n}/input`, `/audio/channel/${n}/supportedInputs`, `/audio/channel/${n}/level`, `/audio/channel/${n}/available`]),
   '/video/autoExposure', '/video/supportedISOs', '/video/iso', '/video/shutter', '/video/supportedShutters', '/video/whiteBalance',
-  '/lens/iris', '/lens/focus/autoFocus', '/lens/focus', '/lens/zoom/description', '/lens/zoom', '/lens/cameras', '/transports/0/record',
+  '/lens/iris', '/lens/focus/autoFocus', '/lens/focus', '/lens/zoom/description', '/lens/zoom', '/lens/cameras', '/lens/cameras/active', '/transports/0/record',
   '/transports/0/timecode', '/presets', '/presets/active', '/monitoring/focusAssist', '/monitoring/zebra', '/monitoring/frameGuideRatio',
   '/monitoring/frameGrids', '/monitoring/safeAreaPercent',
   ...['cleanFeed', 'displayLUT', 'zebra', 'focusAssist', 'frameGuide', 'frameGrids', 'safeArea', 'falseColor'].flatMap(k => [`/monitoring/LCD/${k}`, `/monitoring/HDMI/${k}`])];
@@ -122,7 +122,8 @@ function render() {
       box.dataset.key = key;
       box.innerHTML = avail.map(c => `<button class="btn" data-v="${c.id}">${c.facing === 'front' ? 'Front' : c.zoomFactor} · ${c.focalLength}mm</button>`).join('');
     }
-    const act = lenses.cameras.find(c => c.isActive);
+    // The active lens comes from its own property: the app doesn't update the isActive flags in the list on a switch.
+    const act = P['/lens/cameras/active'] || lenses.cameras.find(c => c.isActive);
     if (act) { setSeg('lenses', act.id); $('lensNow').textContent = `${act.facing === 'front' ? 'Front' : act.zoomFactor} · ${act.focalLength}mm`; }
   }
 
